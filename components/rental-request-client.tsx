@@ -229,7 +229,10 @@ export function RentalRequestClient({ eq, kind }: RentalRequestClientProps) {
                           <input
                             type="number"
                             value={formData.durationDays}
-                            onChange={(e) => updateField('durationDays', parseInt(e.target.value))}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 1;
+                              updateField('durationDays', Math.max(1, val));
+                            }}
                             min={1}
                             className="w-full bg-zinc-800 border border-zinc-700 rounded px-4 py-2 focus:outline-none focus:border-yellow-500"
                           />
