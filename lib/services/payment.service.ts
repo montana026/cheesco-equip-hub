@@ -3,44 +3,74 @@ import type { PaymentType, PaymentStatus } from '@/lib/types';
 
 export interface InitiatePaymentInput {
   rentalRequestId?: string;
-  quotationId?: string;
   amount: number;
-  paymentType: PaymentType;
-  payerId: string;
   email: string;
+  customerName: string;
+  metadata?: Record<string, any>;
+}
+
+export interface InitializePaymentResponse {
+  reference: string;
+  authorizationUrl: string;
+  accessCode: string;
 }
 
 export const paymentService = {
   /**
-   * Initiate payment with Paystack
+   * Initialize payment with Paystack
    */
-  async initiatePayment(input: InitiatePaymentInput) {
-    const reference = `PAY-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  async initializePayment(input: InitiatePaymentInput): Promise<InitializePaymentResponse> {
+    const reference = `CHE-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
-    // Create payment record
+    // Create payment record in database
     const { data: payment, error } = await supabase
       .from('payments')
       .insert({
         rental_request_id: input.rentalRequestId,
-        quotation_id: input.quotationId,
-        payer_id: input.payerId,
         amount: input.amount,
-        currency: 'NGN',
-        payment_type: input.paymentType,
+        reference,
         status: 'PENDING',
-        payment_reference: reference,
-        payment_gateway: 'PAYSTACK',
+        metadata: input.metadata || {},
       })
       .select()
       .single();
 
     if (error) throw error;
 
+    // Initialize Paystack transaction
+    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
+    if (!paystackSecretKey) {
+      throw new Error('Paystack secret key not configured');
+    }
+
+    const response = await fetch('https://api.paystack.co/transaction/initialize', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${paystackSecretKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: input.email,
+        amount: input.amount * 100, // Convert to kobo
+        reference,
+        metadata: {
+          customer_name: input.customerName,
+          ...input.metadata,
+        },
+        callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/customer/payments/verify`,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!result.status) {
+      throw new Error(result.message || 'Failed to initialize payment');
+    }
+
     return {
-      paymentId: payment.id,
       reference,
-      amount: input.amount,
-      email: input.email,
+      authorizationUrl: result.data.authorization_url,
+      accessCode: result.data.access_code,
     };
   },
 
@@ -48,29 +78,45 @@ export const paymentService = {
    * Verify payment with Paystack
    */
   async verifyPayment(reference: string) {
-    // In production, this would call Paystack's verification endpoint
-    // For now, we'll simulate verification
+    const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
+    if (!paystackSecretKey) {
+      throw new Error('Paystack secret key not configured');
+    }
+
+    // Verify with Paystack
+    const response = await fetch(
+      `https://api.paystack.co/transaction/verify/${reference}`,
+      {
+        headers: {
+          Authorization: `Bearer ${paystackSecretKey}`,
+        },
+      }
+    );
+
+    const result = await response.json();
+
+    if (!result.status) {
+      throw new Error('Payment verification failed');
+    }
+
+    const paystackData = result.data;
+
+    // Update payment record
     const { data: payment, error } = await supabase
       .from('payments')
-      .select('*, rental_request:rental_requests(*)')
-      .eq('payment_reference', reference)
+      .update({
+        status: paystackData.status === 'success' ? 'SUCCESSFUL' : 'FAILED',
+        paid_at: paystackData.status === 'success' ? new Date().toISOString() : null,
+        metadata: { paystack_data: paystackData },
+      })
+      .eq('reference', reference)
+      .select('*, rental_requests(id, customer_id)')
       .single();
 
     if (error) throw error;
 
-    // Update payment status
-    const { error: updateError } = await supabase
-      .from('payments')
-      .update({
-        status: 'CONFIRMED',
-        paid_at: new Date().toISOString(),
-      })
-      .eq('payment_reference', reference);
-
-    if (updateError) throw updateError;
-
-    // Update rental state if this is a rental payment
-    if (payment.rental_request_id) {
+    // Update rental state if payment successful
+    if (paystackData.status === 'success' && payment.rental_request_id) {
       await supabase
         .from('rental_requests')
         .update({ current_state: 'PAYMENT_CONFIRMED' })
@@ -80,7 +126,12 @@ export const paymentService = {
       await this.notifyPaymentConfirmed(payment.rental_request_id);
     }
 
-    return payment;
+    return {
+      status: paystackData.status,
+      amount: paystackData.amount / 100, // Convert from kobo
+      reference: paystackData.reference,
+      paidAt: paystackData.paid_at,
+    };
   },
 
   /**
@@ -90,7 +141,7 @@ export const paymentService = {
     const { data, error } = await supabase
       .from('payments')
       .select('*')
-      .eq('payment_reference', reference)
+      .eq('reference', reference)
       .single();
 
     if (error) throw error;
