@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase/client";
+import { login, setLocalSession } from "@/lib/auth";
 
 export function AuthClient({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
@@ -23,44 +25,116 @@ export function AuthClient({ mode }: { mode: "login" | "register" }) {
     setLoading(true);
 
     try {
-      const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/signup";
-
-      const payload = mode === "login"
-        ? { email: formData.email, password: formData.password }
-        : { ...formData, role };
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Authentication failed");
-      }
-
-      toast.success(mode === "login" ? "Welcome back!" : "Account created successfully!");
-
-      // Redirect based on role
       if (mode === "login") {
-        // Get user info to determine redirect
-        const userResponse = await fetch("/api/auth/me");
-        const userData = await userResponse.json();
+        let authUser: any = null;
+        let sessionToken: string | null = null;
+        let userRole: string = "CUSTOMER";
 
-        if (userData.data.role === "MERCHANT") {
+        // 1. Sign in via client-side Supabase so browser session and tokens are established
+        const { data: signInData, error: signInError } =
+          await supabase.auth.signInWithPassword({
+            email: formData.email.trim(),
+            password: formData.password,
+          });
+
+        if (!signInError && signInData.user) {
+          authUser = signInData.user;
+          sessionToken = signInData.session?.access_token || null;
+
+          // Fetch user profile from Supabase to get role and name
+          const { data: profileData } = await supabase
+            .from("users")
+            .select(
+              "*, merchant_profile:merchant_profiles!merchant_profiles_user_id_fkey(*)"
+            )
+            .eq("id", authUser.id)
+            .maybeSingle();
+
+          if (profileData) {
+            userRole = profileData.role;
+            setLocalSession({
+              id: authUser.id,
+              name: profileData.full_name || authUser.email,
+              email: authUser.email,
+              role: profileData.role,
+            });
+          } else {
+            setLocalSession({
+              id: authUser.id,
+              name: authUser.email,
+              email: authUser.email,
+              role: "CUSTOMER",
+            });
+          }
+        } else {
+          // 2. Check if this is an evaluation / seed account from lib/auth
+          try {
+            const seedUser = login(formData.email, formData.password);
+            authUser = seedUser;
+            userRole = seedUser.role;
+            sessionToken = "seed-token";
+          } catch {
+            throw new Error(signInError?.message || "Invalid email or password");
+          }
+        }
+
+        if (sessionToken) {
+          localStorage.setItem("auth_token", sessionToken);
+        }
+
+        toast.success("Welcome back!");
+
+        // Redirect based on role
+        if (userRole === "MERCHANT") {
           router.push("/merchant/dashboard");
-        } else if (userData.data.role === "CUSTOMER") {
+        } else if (userRole === "CUSTOMER") {
           router.push("/dashboard/customer");
         } else {
           router.push("/admin/operations");
         }
       } else {
-        router.push(role === "MERCHANT" ? "/merchant/dashboard" : "/dashboard/customer");
+        // Register mode: call /api/auth/signup (uses service role to bypass RLS)
+        const response = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...formData, role }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "Authentication failed");
+        }
+
+        // Try to automatically sign in right after signup
+        const { data: autoSignInData } =
+          await supabase.auth.signInWithPassword({
+            email: formData.email.trim(),
+            password: formData.password,
+          });
+
+        if (autoSignInData?.user && autoSignInData.session) {
+          localStorage.setItem("auth_token", autoSignInData.session.access_token);
+          setLocalSession({
+            id: autoSignInData.user.id,
+            name: formData.fullName || formData.email,
+            email: formData.email,
+            role,
+          });
+          toast.success("Account created successfully!");
+          router.push(
+            role === "MERCHANT" ? "/merchant/dashboard" : "/dashboard/customer"
+          );
+        } else {
+          toast.success(
+            result.message ||
+              "Account created! Please check your email to verify your account."
+          );
+          router.push("/login");
+        }
       }
     } catch (error: any) {
-      console.error(error);
+      console.error("Auth error:", error);
       toast.error(error.message || "Something went wrong");
     } finally {
       setLoading(false);

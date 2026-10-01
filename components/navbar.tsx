@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CheescoLogo, CheescoWordmark } from "./brand";
+import { useAuth } from "@/lib/contexts/auth-context";
 
 const NAV_LINKS = [
   { href: "/browse", label: "Browse Equipment" },
@@ -14,6 +15,7 @@ const NAV_LINKS = [
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const { user, profile, signOut } = useAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -21,6 +23,35 @@ export function Navbar() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
+
+  // Role-based dashboard links
+  const getDashboardLink = () => {
+    if (!profile) return "/dashboard/customer";
+
+    switch (profile.role) {
+      case "MERCHANT":
+        return "/merchant/dashboard";
+      case "OPERATIONS_ADMIN":
+      case "SUPER_ADMIN":
+        return "/admin/operations";
+      case "VERIFICATION_ADMIN":
+        return "/admin/verification";
+      case "FINANCE_ADMIN":
+        return "/admin/finance";
+      case "SUPPORT_ADMIN":
+        return "/admin/support";
+      default:
+        return "/dashboard/customer";
+    }
+  };
 
   return (
     <header
@@ -49,18 +80,37 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
-          <Link
-            href="/login"
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/register"
-            className="rounded-lg bg-cheesco-yellow px-4 py-2 text-sm font-bold text-canvas transition-transform hover:scale-[1.03] hover:bg-cheesco-yellow-bright"
-          >
-            List Your Equipment
-          </Link>
+          {user ? (
+            <>
+              <Link
+                href={getDashboardLink()}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
+              >
+                Dashboard
+              </Link>
+              <button
+                onClick={handleSignOut}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-ink-muted transition-colors hover:text-red-400"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/register"
+                className="rounded-lg bg-cheesco-yellow px-4 py-2 text-sm font-bold text-canvas transition-transform hover:scale-[1.03] hover:bg-cheesco-yellow-bright"
+              >
+                List Your Equipment
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile menu button */}
@@ -85,13 +135,34 @@ export function Navbar() {
               {l.label}
             </Link>
           ))}
-          <Link
-            href="/register"
-            onClick={() => setOpen(false)}
-            className="mt-3 block rounded-lg bg-cheesco-yellow px-3 py-3 text-center text-sm font-bold text-canvas"
-          >
-            List Your Equipment
-          </Link>
+          {user ? (
+            <>
+              <Link
+                href={getDashboardLink()}
+                onClick={() => setOpen(false)}
+                className="mt-3 block rounded-lg bg-cheesco-yellow px-3 py-3 text-center text-sm font-bold text-canvas"
+              >
+                Dashboard
+              </Link>
+              <button
+                onClick={() => {
+                  handleSignOut();
+                  setOpen(false);
+                }}
+                className="mt-2 w-full block rounded-lg bg-zinc-800 px-3 py-3 text-center text-sm font-bold text-white hover:bg-zinc-700"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/register"
+              onClick={() => setOpen(false)}
+              className="mt-3 block rounded-lg bg-cheesco-yellow px-3 py-3 text-center text-sm font-bold text-canvas"
+            >
+              List Your Equipment
+            </Link>
+          )}
         </div>
       )}
     </header>

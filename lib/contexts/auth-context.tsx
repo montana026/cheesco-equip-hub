@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { setLocalSession } from "@/lib/auth";
 import type { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -33,14 +34,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error) throw error;
-      setProfile(
-        data
-          ? {
-              ...data,
-              name: data.full_name || data.name || data.email,
-            }
-          : null
-      );
+      if (data) {
+        const normalized = {
+          ...data,
+          name: data.full_name || data.name || data.email,
+        };
+        setProfile(normalized);
+        setLocalSession({
+          id: normalized.id,
+          name: normalized.name,
+          email: normalized.email,
+          role: normalized.role,
+        });
+      } else {
+        setProfile(null);
+      }
     } catch (error) {
       console.error("Error fetching user profile:", error);
     }
@@ -67,13 +75,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchUserProfile(session.user.id);
-      } else {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session?.user?.id);
+
+      // Only update state on actual sign-in/sign-out events
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
         setProfile(null);
+      } else if (event === 'TOKEN_REFRESHED') {
+        // Token refresh should not clear the user
+        if (session?.user && !user) {
+          setUser(session.user);
+          await fetchUserProfile(session.user.id);
+        }
       }
+
       setLoading(false);
     });
 
@@ -84,6 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
     try {
       localStorage.removeItem("cheesco.session.v1");
+      localStorage.removeItem("auth_token");
     } catch {}
     setUser(null);
     setProfile(null);

@@ -76,7 +76,7 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
 
 const SESSION_KEY = "cheesco.session.v1";
 
-function fakeJwt(user: SessionUser): string {
+export function fakeJwt(user: SessionUser): string {
   const payload = {
     sub: user.id,
     name: user.name,
@@ -86,6 +86,14 @@ function fakeJwt(user: SessionUser): string {
     exp: Date.now() + 7 * 86400_000,
   };
   return `hdr.${btoa(JSON.stringify(payload))}.sig`;
+}
+
+export function setLocalSession(user: SessionUser): void {
+  try {
+    localStorage.setItem(SESSION_KEY, fakeJwt(user));
+  } catch {
+    /* noop */
+  }
 }
 
 export function login(email: string, password: string): SessionUser {
@@ -98,11 +106,7 @@ export function login(email: string, password: string): SessionUser {
   const session: SessionUser = {
     id: acct.id, name: acct.name, email: acct.email, role: acct.role,
   };
-  try {
-    localStorage.setItem(SESSION_KEY, fakeJwt(session));
-  } catch {
-    /* private-mode fallback: session lives in memory for this page only */
-  }
+  setLocalSession(session);
   return session;
 }
 
@@ -123,6 +127,7 @@ export function getSession(): SessionUser | null {
 export function logout(): void {
   try {
     localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem("auth_token");
   } catch {
     /* noop */
   }
