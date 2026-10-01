@@ -1,275 +1,310 @@
-"use client";
+/* ── Customer Dashboard — Enhanced with Quotation Support ──────────── */
+'use client';
 
-import { useEffect, useState } from "react";
-import { useAuth } from "@/lib/contexts/auth-context";
-import { ProtectedRoute } from "@/components/protected-route";
-import { DashboardShell } from "@/components/dashboard-shell";
-import Link from "next/link";
-import { fmtNgn } from "@/lib/format";
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
+import QuotationViewer from './QuotationViewer';
 
-const NAV = [
-  { href: "/dashboard/customer", label: "Overview" },
-  { href: "/dashboard/customer/requests", label: "My Requests" },
-  { href: "/dashboard/customer/quotations", label: "Quotations" },
-  { href: "/dashboard/customer/rentals", label: "Active Rentals" },
-  { href: "/dashboard/customer/saved", label: "Saved Equipment" },
-  { href: "/dashboard/customer/payments", label: "Payments" },
-];
+interface RentalRequest {
+  id: string;
+  referenceNumber: string;
+  equipmentName: string;
+  startDate: string;
+  durationDays: number;
+  projectLocation: string;
+  currentState: string;
+  createdAt: string;
+}
 
-interface DashboardStats {
-  pendingRequests: number;
-  activeRentals: number;
-  pendingQuotations: number;
-  savedEquipment: number;
+interface Quotation {
+  id: string;
+  referenceNumber: string;
+  merchantBaseRate: number;
+  cheescoManagedRate: number;
+  lineItems: Array<{ label: string; amount: number; note?: string }>;
+  subtotal: number;
+  depositAmount: number;
+  totalAmount: number;
+  status: string;
+  validUntil: string;
+  terms: string;
+  sentAt?: string;
 }
 
 export function CustomerDashboardClient() {
-  const { user, profile } = useAuth();
-  const [stats, setStats] = useState<DashboardStats>({
-    pendingRequests: 0,
-    activeRentals: 0,
-    pendingQuotations: 0,
-    savedEquipment: 0,
-  });
-  const [recentRequests, setRecentRequests] = useState<any[]>([]);
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [requests, setRequests] = useState<RentalRequest[]>([]);
+  const [selectedRequest, setSelectedRequest] = useState<RentalRequest | null>(null);
+  const [quotation, setQuotation] = useState<Quotation | null>(null);
+  const [loadingQuotation, setLoadingQuotation] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      fetchDashboardData();
+    fetchRentalRequests();
+  }, []);
+
+  useEffect(() => {
+    if (selectedRequest) {
+      fetchQuotation(selectedRequest.id);
+    } else {
+      setQuotation(null);
     }
-  }, [user]);
+  }, [selectedRequest]);
 
-  const fetchDashboardData = async () => {
+  const fetchRentalRequests = async () => {
+    setLoading(true);
     try {
-      // Fetch rental requests
-      const requestsResponse = await fetch("/api/rentals");
-      const requestsData = await requestsResponse.json();
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
 
-      const requests = requestsData.data || [];
-
-      // Calculate stats
-      const pending = requests.filter(
-        (r: any) =>
-          r.current_state === "REQUEST_SUBMITTED" ||
-          r.current_state === "CHEESCO_REVIEWING"
-      ).length;
-
-      const active = requests.filter((r: any) =>
-        r.current_state === "RENTAL_ACTIVE"
-      ).length;
-
-      const quotations = requests.filter((r: any) =>
-        ["QUOTATION_SENT", "QUOTATION_VIEWED"].includes(r.current_state)
-      ).length;
-
-      setStats({
-        pendingRequests: pending,
-        activeRentals: active,
-        pendingQuotations: quotations,
-        savedEquipment: 0, // TODO: fetch from API
+      const response = await fetch('/api/rentals', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
-      setRecentRequests(requests.slice(0, 5));
+      const result = await response.json();
+      if (result.success) {
+        setRequests(result.data || []);
+      }
     } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
+      toast.error('Failed to fetch rental requests');
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchQuotation = async (rentalRequestId: string) => {
+    setLoadingQuotation(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/quotations?rentalRequestId=${rentalRequestId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const result = await response.json();
+      if (result.success && result.data) {
+        setQuotation(result.data);
+      } else {
+        setQuotation(null);
+      }
+    } catch (error) {
+      setQuotation(null);
+    } finally {
+      setLoadingQuotation(false);
+    }
+  };
+
+  const getStateBadgeColor = (state: string) => {
+    if (state.includes('SUBMITTED') || state.includes('REVIEWING')) return 'bg-blue-500/20 text-blue-400';
+    if (state.includes('QUOTATION')) return 'bg-purple-500/20 text-purple-400';
+    if (state.includes('PAYMENT')) return 'bg-yellow-500/20 text-yellow-400';
+    if (state.includes('ACTIVE')) return 'bg-green-500/20 text-green-400';
+    return 'bg-zinc-700 text-zinc-300';
+  };
+
+  const pendingRequests = requests.filter(r =>
+    ['REQUEST_SUBMITTED', 'CHEESCO_REVIEWING', 'EQUIPMENT_VERIFICATION_CHECK', 'AVAILABILITY_CONFIRMED'].includes(r.currentState)
+  );
+
+  const quotedRequests = requests.filter(r => r.currentState.includes('QUOTATION'));
+  const activeRentals = requests.filter(r => r.currentState === 'RENTAL_ACTIVE');
+  const completedRentals = requests.filter(r => r.currentState === 'COMPLETED');
+
   return (
-    <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-      <DashboardShell user={profile} nav={NAV} title="Customer Dashboard">
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="h-12 w-12 animate-spin rounded-full border-4 border-line border-t-cheesco-yellow mx-auto" />
-              <p className="mt-4 text-ink-muted">Loading dashboard...</p>
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* KPI Cards */}
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard
-                label="Pending Requests"
-                value={String(stats.pendingRequests)}
-                accent={stats.pendingRequests > 0}
-              />
-              <StatCard
-                label="Active Rentals"
-                value={String(stats.activeRentals)}
-                accent
-              />
-              <StatCard
-                label="Pending Quotations"
-                value={String(stats.pendingQuotations)}
-                sub={stats.pendingQuotations > 0 ? "Requires your review" : undefined}
-              />
-              <StatCard
-                label="Saved Equipment"
-                value={String(stats.savedEquipment)}
-              />
-            </div>
+    <div className="min-h-screen bg-black text-white">
+      {/* Header */}
+      <div className="border-b border-zinc-800 bg-zinc-900/50">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <h1 className="text-3xl font-bold">My Dashboard</h1>
+          <p className="text-zinc-400 mt-1">Track your rental requests and equipment</p>
+        </div>
+      </div>
 
-            {/* Quick Actions */}
-            <div className="mt-8">
-              <h2 className="text-lg font-black">Quick Actions</h2>
-              <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                <Link
-                  href="/browse"
-                  className="card-surface rounded-xl p-6 hover:border-cheesco-yellow/50 transition-colors"
-                >
-                  <div className="text-3xl mb-2">🔍</div>
-                  <h3 className="font-bold">Browse Equipment</h3>
-                  <p className="text-sm text-ink-muted mt-1">
-                    Find excavators, cranes, generators and more
-                  </p>
-                </Link>
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-zinc-900 border border-zinc-800 rounded-lg p-6"
+          >
+            <div className="text-3xl font-bold text-blue-500">{pendingRequests.length}</div>
+            <div className="text-sm text-zinc-400 mt-1">Pending Review</div>
+          </motion.div>
 
-                <Link
-                  href="/dashboard/customer/requests"
-                  className="card-surface rounded-xl p-6 hover:border-cheesco-yellow/50 transition-colors"
-                >
-                  <div className="text-3xl mb-2">📋</div>
-                  <h3 className="font-bold">My Requests</h3>
-                  <p className="text-sm text-ink-muted mt-1">
-                    View and track your rental requests
-                  </p>
-                </Link>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-zinc-900 border border-zinc-800 rounded-lg p-6"
+          >
+            <div className="text-3xl font-bold text-purple-500">{quotedRequests.length}</div>
+            <div className="text-sm text-zinc-400 mt-1">Quotations Received</div>
+          </motion.div>
 
-                <Link
-                  href="/dashboard/customer/saved"
-                  className="card-surface rounded-xl p-6 hover:border-cheesco-yellow/50 transition-colors"
-                >
-                  <div className="text-3xl mb-2">⭐</div>
-                  <h3 className="font-bold">Saved Equipment</h3>
-                  <p className="text-sm text-ink-muted mt-1">
-                    View your saved equipment
-                  </p>
-                </Link>
-              </div>
-            </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-zinc-900 border border-zinc-800 rounded-lg p-6"
+          >
+            <div className="text-3xl font-bold text-green-500">{activeRentals.length}</div>
+            <div className="text-sm text-zinc-400 mt-1">Active Rentals</div>
+          </motion.div>
 
-            {/* Recent Requests */}
-            {recentRequests.length > 0 && (
-              <div className="mt-8">
-                <div className="flex items-end justify-between">
-                  <h2 className="text-lg font-black">Recent Requests</h2>
-                  <Link
-                    href="/dashboard/customer/requests"
-                    className="text-sm font-bold text-cheesco-yellow hover:underline"
-                  >
-                    View all →
-                  </Link>
-                </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-zinc-900 border border-zinc-800 rounded-lg p-6"
+          >
+            <div className="text-3xl font-bold">{completedRentals.length}</div>
+            <div className="text-sm text-zinc-400 mt-1">Completed</div>
+          </motion.div>
+        </div>
 
-                <div className="mt-4 space-y-3">
-                  {recentRequests.map((request) => (
-                    <Link
-                      key={request.id}
-                      href={`/dashboard/customer/requests/${request.id}`}
-                      className="card-surface block rounded-xl p-4 hover:border-cheesco-yellow/50 transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-bold">
-                              {request.equipment?.name || "Equipment"}
-                            </h3>
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${getStatusColor(
-                                request.current_state
-                              )}`}
-                            >
-                              {formatStatus(request.current_state)}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-sm text-ink-muted">
-                            {request.reference_number} • {request.duration_days} days
-                            • {request.project_location}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-ink-faint">
-                            {new Date(request.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
+        {/* Main Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Requests List */}
+          <div>
+            <h2 className="text-xl font-bold mb-4">My Rental Requests</h2>
 
-            {/* Empty State */}
-            {recentRequests.length === 0 && (
-              <div className="mt-12 text-center">
-                <div className="text-6xl mb-4">📦</div>
-                <h3 className="text-xl font-black">No Rental Requests Yet</h3>
-                <p className="mt-2 text-ink-muted">
-                  Browse our equipment catalog to get started
-                </p>
-                <Link
-                  href="/browse"
-                  className="mt-6 inline-block rounded-lg bg-cheesco-yellow px-6 py-3 font-bold text-canvas hover:bg-cheesco-yellow-bright"
+            {loading ? (
+              <div className="text-center py-12 text-zinc-400">Loading...</div>
+            ) : requests.length === 0 ? (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center">
+                <p className="text-zinc-400 mb-4">No rental requests yet</p>
+                <button
+                  onClick={() => router.push('/browse')}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-black px-6 py-2 rounded-lg font-medium transition"
                 >
                   Browse Equipment
-                </Link>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {requests.map((request) => (
+                  <motion.div
+                    key={request.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    onClick={() => setSelectedRequest(request)}
+                    className={`bg-zinc-900 border rounded-lg p-4 cursor-pointer transition ${
+                      selectedRequest?.id === request.id
+                        ? 'border-yellow-500'
+                        : 'border-zinc-800 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className="font-semibold">{request.equipmentName}</h3>
+                        <p className="text-sm text-zinc-400">{request.referenceNumber}</p>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded-full ${getStateBadgeColor(request.currentState)}`}>
+                        {request.currentState.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-zinc-400">
+                      <div>Start: {new Date(request.startDate).toLocaleDateString()}</div>
+                      <div>Duration: {request.durationDays} days</div>
+                      <div>Location: {request.projectLocation}</div>
+                      <div>Created: {new Date(request.createdAt).toLocaleDateString()}</div>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
             )}
-          </>
-        )}
-      </DashboardShell>
-    </ProtectedRoute>
-  );
-}
+          </div>
 
-function StatCard({
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="card-surface rounded-xl p-5">
-      <div className="text-[11px] font-bold uppercase tracking-wider text-ink-faint">
-        {label}
+          {/* Quotation Viewer */}
+          <div>
+            {selectedRequest ? (
+              <div>
+                <h2 className="text-xl font-bold mb-4">
+                  {quotation ? 'Quotation Details' : 'Request Details'}
+                </h2>
+
+                {loadingQuotation ? (
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center">
+                    <p className="text-zinc-400">Loading quotation...</p>
+                  </div>
+                ) : quotation ? (
+                  <QuotationViewer
+                    quotation={quotation}
+                    rentalRequest={{
+                      equipmentName: selectedRequest.equipmentName,
+                      durationDays: selectedRequest.durationDays,
+                    }}
+                    onAccept={() => {
+                      fetchRentalRequests();
+                      toast.success('Quotation accepted! Proceeding to payment...');
+                    }}
+                    onDecline={() => {
+                      fetchRentalRequests();
+                    }}
+                  />
+                ) : (
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8">
+                    <h3 className="font-semibold text-lg mb-4">{selectedRequest.equipmentName}</h3>
+                    <div className="space-y-3 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-zinc-400">Reference:</span>
+                        <span className="font-medium">{selectedRequest.referenceNumber}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-400">Status:</span>
+                        <span className={`px-2 py-1 rounded text-xs ${getStateBadgeColor(selectedRequest.currentState)}`}>
+                          {selectedRequest.currentState.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-400">Start Date:</span>
+                        <span>{new Date(selectedRequest.startDate).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-400">Duration:</span>
+                        <span>{selectedRequest.durationDays} days</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-400">Location:</span>
+                        <span>{selectedRequest.projectLocation}</span>
+                      </div>
+                    </div>
+
+                    {selectedRequest.currentState.includes('REVIEWING') && (
+                      <div className="mt-6 bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                        <p className="text-blue-400 text-sm">
+                          ⏳ Cheesco is reviewing your request. You'll receive a quotation soon.
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedRequest.currentState === 'REQUEST_SUBMITTED' && (
+                      <div className="mt-6 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+                        <p className="text-yellow-400 text-sm">
+                          📋 Your request has been submitted. Cheesco will verify availability and prepare a quotation.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center">
+                <p className="text-zinc-400">Select a rental request to view details</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-      <div
-        className={`mt-1 text-2xl font-black ${
-          accent ? "text-cheesco-yellow" : ""
-        }`}
-      >
-        {value}
-      </div>
-      {sub && <div className="mt-1 text-xs text-ink-muted">{sub}</div>}
     </div>
   );
-}
-
-function getStatusColor(status: string) {
-  if (["REQUEST_SUBMITTED", "CHEESCO_REVIEWING"].includes(status)) {
-    return "bg-warn/20 text-warn";
-  }
-  if (["QUOTATION_SENT", "QUOTATION_VIEWED"].includes(status)) {
-    return "bg-cheesco-yellow/20 text-cheesco-yellow";
-  }
-  if (status === "RENTAL_ACTIVE") {
-    return "bg-success/20 text-success";
-  }
-  if (status === "COMPLETED") {
-    return "bg-ink-faint/20 text-ink-faint";
-  }
-  return "bg-line/20 text-ink-muted";
-}
-
-function formatStatus(status: string) {
-  return status.replace(/_/g, " ");
 }

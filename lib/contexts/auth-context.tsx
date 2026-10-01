@@ -27,13 +27,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .from("users")
         .select(`
           *,
-          merchant_profile:merchant_profiles(*)
+          merchant_profile:merchant_profiles!merchant_profiles_user_id_fkey(*)
         `)
         .eq("id", userId)
         .single();
 
       if (error) throw error;
-      setProfile(data);
+      setProfile(
+        data
+          ? {
+              ...data,
+              name: data.full_name || data.name || data.email,
+            }
+          : null
+      );
     } catch (error) {
       console.error("Error fetching user profile:", error);
     }
@@ -49,10 +56,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchUserProfile(session.user.id);
+        await fetchUserProfile(session.user.id);
       }
       setLoading(false);
     });
@@ -75,6 +82,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    try {
+      localStorage.removeItem("cheesco.session.v1");
+    } catch {}
     setUser(null);
     setProfile(null);
     router.push("/");

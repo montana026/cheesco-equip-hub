@@ -782,9 +782,12 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE saved_equipment ENABLE ROW LEVEL SECURITY;
 
--- Users can read their own data
+-- Users can read and insert their own data
 CREATE POLICY "Users can view own data" ON users
   FOR SELECT USING (auth.uid() = id);
+
+CREATE POLICY "Users can insert own data" ON users
+  FOR INSERT WITH CHECK (auth.uid() = id);
 
 CREATE POLICY "Users can update own data" ON users
   FOR UPDATE USING (auth.uid() = id);
@@ -792,6 +795,9 @@ CREATE POLICY "Users can update own data" ON users
 -- Merchants can manage their own profile
 CREATE POLICY "Merchants can view own profile" ON merchant_profiles
   FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Merchants can insert own profile" ON merchant_profiles
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Merchants can update own profile" ON merchant_profiles
   FOR UPDATE USING (auth.uid() = user_id);

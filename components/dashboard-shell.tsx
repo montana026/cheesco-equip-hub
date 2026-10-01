@@ -20,11 +20,15 @@ export function DashboardShell({
   title,
   children,
 }: {
-  user: SessionUser;
+  user: SessionUser | any;
   nav: { href: string; label: string; badge?: string | number }[];
   title: string;
   children: ReactNode;
 }) {
+  const displayName = user?.name || user?.full_name || user?.email || "User";
+  const displayRole = (user?.role || "CUSTOMER").replace(/_/g, " ");
+  const initial = displayName.slice(0, 1).toUpperCase();
+
   return (
     <SessionContext.Provider value={user}>
       <div className="flex min-h-screen">
@@ -35,10 +39,10 @@ export function DashboardShell({
             <span className="text-sm font-black tracking-widest">CHEESCO</span>
           </Link>
           <div className="mx-4 rounded-lg border border-line-soft bg-card px-3 py-2.5">
-            <div className="truncate text-sm font-bold">{user.name}</div>
+            <div className="truncate text-sm font-bold">{displayName}</div>
             <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-cheesco-yellow">
               <span className="h-1.5 w-1.5 rounded-full bg-cheesco-yellow" />
-              {user.role.replace("_", " ")}
+              {displayRole}
             </div>
           </div>
           <nav className="mt-4 flex-1 space-y-1 px-3 pb-6">
@@ -72,9 +76,9 @@ export function DashboardShell({
           <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-4 border-b border-line-soft bg-canvas/85 px-4 backdrop-blur-xl sm:px-8">
             <h1 className="text-lg font-black tracking-tight">{title}</h1>
             <div className="flex items-center gap-3">
-              <span className="hidden text-xs text-ink-faint sm:block">{user.email}</span>
+              <span className="hidden text-xs text-ink-faint sm:block">{user?.email ?? ""}</span>
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-cheesco-yellow text-sm font-black text-canvas">
-                {user.name.slice(0, 1).toUpperCase()}
+                {initial}
               </div>
               <button
                 onClick={() => { logout(); window.location.href = "/"; }}

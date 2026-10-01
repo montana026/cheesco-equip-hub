@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client';
+import { supabaseServer } from '@/lib/supabase/server';
 import type { UserRole } from '@/lib/types';
 
 export interface SignUpInput {
@@ -21,16 +22,83 @@ export const authService = {
    */
   async signUp(input: SignUpInput) {
     // Create auth user
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    let authData;
+    const { data, error: authError } = await supabase.auth.signUp({
       email: input.email,
       password: input.password,
     });
 
-    if (authError) throw authError;
-    if (!authData.user) throw new Error('Failed to create user');
+    if (authError) {
+      // If user is already registered in auth.users, check if they have a profile
+      if (authError.message.toLowerCase().includes('already registered')) {
+        const { data: usersData } = await supabaseServer.auth.admin.listUsers();
+        const existingAuthUser = usersData?.users.find(
+          (u) => u.email?.toLowerCase() === input.email.toLowerCase()
+        );
 
-    // Create user profile
-    const { error: profileError } = await supabase.from('users').insert({
+        if (existingAuthUser) {
+          const { data: existingProfile } = await supabaseServer
+            .from('users')
+            .select('id')
+            .eq('id', existingAuthUser.id)
+            .maybeSingle();
+
+          if (!existingProfile) {
+            // Orphaned auth user from a previously failed profile creation — clean up and retry
+            await supabaseServer.auth.admin.deleteUser(existingAuthUser.id);
+            const retry = await supabase.auth.signUp({
+              email: input.email,
+              password: input.password,
+            });
+            if (retry.error) throw retry.error;
+            authData = retry.data;
+          } else {
+            throw authError;
+          }
+        } else {
+          throw authError;
+        }
+      } else {
+        throw authError;
+      }
+    } else {
+      authData = data;
+    }
+
+    if (!authData?.user) throw new Error('Failed to create user');
+
+    // Handle case where Supabase returns obfuscated user with empty identities (already exists)
+    if (authData.user.identities && authData.user.identities.length === 0) {
+      const { data: usersData } = await supabaseServer.auth.admin.listUsers();
+      const existingAuthUser = usersData?.users.find(
+        (u) => u.email?.toLowerCase() === input.email.toLowerCase()
+      );
+
+      if (existingAuthUser) {
+        const { data: existingProfile } = await supabaseServer
+          .from('users')
+          .select('id')
+          .eq('id', existingAuthUser.id)
+          .maybeSingle();
+
+        if (!existingProfile) {
+          await supabaseServer.auth.admin.deleteUser(existingAuthUser.id);
+          const retry = await supabase.auth.signUp({
+            email: input.email,
+            password: input.password,
+          });
+          if (retry.error) throw retry.error;
+          authData = retry.data;
+        } else {
+          throw new Error('An account with this email already exists.');
+        }
+      }
+    }
+
+    if (!authData?.user) throw new Error('Failed to create user');
+
+    // Create user profile using supabaseServer (service role key bypasses RLS)
+    const { error: profileError } = await supabaseServer.from('users').upsert({
       id: authData.user.id,
       email: input.email,
       full_name: input.fullName,
@@ -40,14 +108,17 @@ export const authService = {
 
     if (profileError) throw profileError;
 
-    // If merchant, create merchant profile
+    // If merchant, create merchant profile using supabaseServer
     if (input.role === 'MERCHANT' && input.businessName) {
-      const { error: merchantError } = await supabase
+      const { error: merchantError } = await supabaseServer
         .from('merchant_profiles')
-        .insert({
-          user_id: authData.user.id,
-          business_name: input.businessName,
-        });
+        .upsert(
+          {
+            user_id: authData.user.id,
+            business_name: input.businessName,
+          },
+          { onConflict: 'user_id' }
+        );
 
       if (merchantError) throw merchantError;
     }
@@ -92,11 +163,11 @@ export const authService = {
     const session = await this.getSession();
     if (!session) return null;
 
-    const { data: user, error } = await supabase
+    const { data: user, error } = await supabaseServer
       .from('users')
       .select(`
         *,
-        merchant_profile:merchant_profiles(*)
+        merchant_profile:merchant_profiles!merchant_profiles_user_id_fkey(*)
       `)
       .eq('id', session.user.id)
       .single();
@@ -135,7 +206,7 @@ export const authService = {
     phone: string;
     avatar_url: string;
   }>) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseServer
       .from('users')
       .update(updates)
       .eq('id', userId)
