@@ -2,8 +2,9 @@
 
 import { useTheme } from '@/lib/contexts/theme-context';
 import { motion } from 'framer-motion';
+import { Suspense } from 'react';
 
-export function ThemeToggle() {
+function ThemeToggleContent() {
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -40,5 +41,13 @@ export function ThemeToggle() {
         </motion.svg>
       )}
     </motion.button>
+  );
+}
+
+export function ThemeToggle() {
+  return (
+    <Suspense fallback={<div className="h-10 w-10 rounded-lg bg-card" />}>
+      <ThemeToggleContent />
+    </Suspense>
   );
 }
