@@ -47,7 +47,10 @@ export default function MerchantListingsPage() {
         <p className="text-sm text-ink-muted">
           {myListings.length} units listed · set your base rates, Cheesco applies the managed margin.
         </p>
-        <button className="rounded-lg bg-cheesco-yellow px-4 py-2 text-xs font-black text-canvas hover:bg-cheesco-yellow-bright">
+        <button
+          onClick={() => router.push('/merchant/listings/new')}
+          className="rounded-lg bg-cheesco-yellow px-4 py-2 text-xs font-black text-canvas hover:bg-cheesco-yellow-bright"
+        >
           + Add Equipment
         </button>
       </div>

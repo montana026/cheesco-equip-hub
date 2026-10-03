@@ -20,13 +20,42 @@ const NAV = [
 export default function MerchantDashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [verification, setVerification] = useState<{
+    verificationStatus: string;
+    businessName: string;
+  } | null>(null);
 
   useEffect(() => {
     const s = getSession();
     const redirect = guardRoute("MERCHANT", s);
     if (redirect) { router.replace(redirect); return; }
     setUser(s);
+    fetchVerificationStatus();
   }, [router]);
+
+  const fetchVerificationStatus = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch("/api/merchant/verification", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setVerification({
+          verificationStatus: result.data.verificationStatus,
+          businessName: result.data.businessName,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch verification status:", error);
+      // Set a default value to prevent UI breaking
+      setVerification({
+        verificationStatus: "NOT_STARTED",
+        businessName: "",
+      });
+    }
+  };
 
   if (!user) return <div className="min-h-screen bg-canvas" />;
 
@@ -47,7 +76,10 @@ export default function MerchantDashboardPage() {
         <StatCard label="Active Listings" value={String(myListings.length)} accent />
         <StatCard label="Rental Requests" value="7" sub="3 awaiting your review" />
         <StatCard label="Sales Enquiries" value="2" />
-        <StatCard label="Est. Earnings (90d)" value={`₦${fmtNgn(estimatedEarnings)}`} accent />
+        <StatCard label="Verification Status"
+          value={verification?.verificationStatus?.replace(/_/g, " ") || "NOT_STARTED"}
+          accent={verification?.verificationStatus === "VERIFIED"}
+        />
       </div>
 
       {/* Ad performance */}
