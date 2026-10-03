@@ -7,6 +7,7 @@
   --color-cheesco-yellow-dim: #e5a910;
   --color-cheesco-amber: #f59e0b;
 
+  /* Dark Mode (default) */
   --color-canvas: #0a0d14;
   --color-canvas-deep: #06080d;
   --color-card: #121722;
@@ -43,7 +44,37 @@
   }
 }
 
+/* Light mode colors */
+html[data-theme="light"] {
+  --color-canvas: #ffffff;
+  --color-canvas-deep: #f8f9fa;
+  --color-card: #f3f4f6;
+  --color-card-raised: #ffffff;
+  --color-line: #e5e7eb;
+  --color-line-soft: #f0f1f3;
+  --color-ink: #1f2937;
+  --color-ink-muted: #6b7280;
+  --color-ink-faint: #9ca3af;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+  --color-warn: #f59e0b;
+  color-scheme: light;
+}
+
+html[data-theme="dark"],
 html {
+  --color-canvas: #0a0d14;
+  --color-canvas-deep: #06080d;
+  --color-card: #121722;
+  --color-card-raised: #1a2130;
+  --color-line: #232b3d;
+  --color-line-soft: #1b2231;
+  --color-ink: #f4f6fb;
+  --color-ink-muted: #9aa4b8;
+  --color-ink-faint: #5d6880;
+  --color-success: #34d399;
+  --color-danger: #f87171;
+  --color-warn: #fbbf24;
   color-scheme: dark;
 }
 
@@ -51,6 +82,7 @@ body {
   background: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Hazard-stripe accent bar — heavy-equipment motif */

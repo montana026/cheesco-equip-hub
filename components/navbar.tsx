@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CheescoLogo, CheescoWordmark } from "./brand";
 import { useAuth } from "@/lib/contexts/auth-context";
+import { ThemeToggle } from "./theme-toggle";
 
 const NAV_LINKS = [
   { href: "/browse", label: "Browse Equipment" },
@@ -80,6 +81,7 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
+          <ThemeToggle />
           {user ? (
             <>
               <Link
