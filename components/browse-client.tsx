@@ -1,20 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CATEGORY_META, EQUIPMENT, NIGERIAN_STATES, sponsoredRank } from "@/lib/seed";
+import { CATEGORY_META, NIGERIAN_STATES } from "@/lib/seed";
 import type { Equipment, EquipmentCategory, ListingType } from "@/lib/types";
 import { EquipmentCard } from "./sections";
 
+
 const CATEGORIES = Object.keys(CATEGORY_META) as EquipmentCategory[];
-
 const CONDITIONS = ["NEW", "USED_EXCELLENT", "USED_GOOD", "USED_FAIR"] as const;
-
-function matchesListing(eq: Equipment, listing: string): boolean {
-  if (listing === "rent") return eq.listingType !== "FOR_SALE";
-  if (listing === "buy") return eq.listingType !== "FOR_RENT";
-  return true;
-}
 
 function listingLabel(t: ListingType) {
   switch (t) {
@@ -24,7 +18,11 @@ function listingLabel(t: ListingType) {
   }
 }
 
-export function BrowseClient() {
+interface BrowseClientProps {
+  initialEquipment: Equipment[];
+}
+
+export function BrowseClient({ initialEquipment }: BrowseClientProps) {
   const router = useRouter();
   const sp = useSearchParams();
 
@@ -37,24 +35,44 @@ export function BrowseClient() {
   const [operatorOnly, setOperatorOnly] = useState(false);
   const [availableOnly, setAvailableOnly] = useState(true);
 
-  const results = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const max = maxPrice ? Number(maxPrice) : Infinity;
-    let list = EQUIPMENT.filter((eq) => {
-      if (needle &&
-        !`${eq.name} ${eq.brand} ${eq.model} ${eq.category}`.toLowerCase().includes(needle))
-        return false;
-      if (category && eq.category !== category) return false;
-      if (!matchesListing(eq, listing)) return false;
-      if (state && eq.locationState !== state) return false;
-      if (condition && eq.condition !== condition) return false;
-      if ((eq.cheescoAdjustedRate ?? eq.merchantRentalRate) > max) return false;
-      if (operatorOnly && !eq.isOperatorIncluded) return false;
-      if (availableOnly && eq.availabilityStatus !== "AVAILABLE") return false;
-      return true;
-    });
-    return sponsoredRank(list);
-  }, [q, category, listing, state, condition, maxPrice, operatorOnly, availableOnly]);
+  const [equipment, setEquipment] = useState<Equipment[]>(initialEquipment);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch from the API whenever server-side-filterable params change
+  const fetchEquipment = useCallback(async (params: {
+    q?: string; category?: string; listing?: string; state?: string;
+  }) => {
+    setLoading(true);
+    try {
+      const qs = new URLSearchParams();
+      if (params.q)        qs.set("q", params.q);
+      if (params.category) qs.set("category", params.category);
+      if (params.listing && params.listing !== "any") qs.set("listing", params.listing);
+      if (params.state)    qs.set("state", params.state);
+      qs.set("limit", "100");
+
+      const res = await fetch(`/api/equipment?${qs.toString()}`);
+      if (!res.ok) throw new Error("fetch failed");
+      const json = await res.json();
+      setEquipment(json.data ?? []);
+    } catch {
+      // silently keep current results on network error
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Apply client-side-only filters (condition, maxPrice, operatorOnly, availableOnly)
+  const results = equipment.filter((eq) => {
+    if (condition && eq.condition !== condition) return false;
+    if (maxPrice) {
+      const rate = eq.cheescoAdjustedRate ?? eq.merchantRentalRate ?? 0;
+      if (rate > Number(maxPrice)) return false;
+    }
+    if (operatorOnly && !eq.isOperatorIncluded) return false;
+    if (availableOnly && eq.availabilityStatus !== "AVAILABLE") return false;
+    return true;
+  });
 
   function apply(next: Partial<Record<string, string>>) {
     const params = new URLSearchParams(sp.toString());
@@ -75,7 +93,11 @@ export function BrowseClient() {
           <div className="text-xs font-black tracking-[0.25em] text-cheesco-yellow">FILTERS</div>
           <input
             value={q}
-            onChange={(e) => { setQ(e.target.value); apply({ q: e.target.value }); }}
+            onChange={(e) => {
+              setQ(e.target.value);
+              apply({ q: e.target.value });
+              fetchEquipment({ q: e.target.value, category, listing, state });
+            }}
             placeholder="Search machines…"
             className="mt-3 h-10 w-full rounded-lg bg-canvas-deep px-3 text-sm outline-none ring-1 ring-line-soft focus:ring-cheesco-yellow/60"
           />
@@ -83,7 +105,11 @@ export function BrowseClient() {
           <FilterGroup label="Category">
             <select
               value={category}
-              onChange={(e) => { setCategory(e.target.value); apply({ category: e.target.value }); }}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                apply({ category: e.target.value });
+                fetchEquipment({ q, category: e.target.value, listing, state });
+              }}
               className="h-9 w-full rounded-lg bg-canvas-deep px-2 text-sm outline-none ring-1 ring-line-soft"
             >
               <option value="">All</option>
@@ -96,7 +122,11 @@ export function BrowseClient() {
               {[["any", "Any"], ["rent", "Rent"], ["buy", "Buy"]].map(([v, label]) => (
                 <button
                   key={v}
-                  onClick={() => { setListing(v); apply({ listing: v === "any" ? "" : v }); }}
+                  onClick={() => {
+                    setListing(v);
+                    apply({ listing: v === "any" ? "" : v });
+                    fetchEquipment({ q, category, listing: v, state });
+                  }}
                   className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-bold transition-colors ${
                     listing === v ? "bg-cheesco-yellow text-canvas" : "bg-canvas-deep text-ink-muted ring-1 ring-line-soft"
                   }`}
@@ -110,7 +140,11 @@ export function BrowseClient() {
           <FilterGroup label="State">
             <select
               value={state}
-              onChange={(e) => { setState(e.target.value); apply({ state: e.target.value }); }}
+              onChange={(e) => {
+                setState(e.target.value);
+                apply({ state: e.target.value });
+                fetchEquipment({ q, category, listing, state: e.target.value });
+              }}
               className="h-9 w-full rounded-lg bg-canvas-deep px-2 text-sm outline-none ring-1 ring-line-soft"
             >
               <option value="">All Nigeria</option>
@@ -160,6 +194,7 @@ export function BrowseClient() {
                 setQ(""); setCategory(""); setListing("any"); setState("");
                 setCondition(""); setMaxPrice(""); setOperatorOnly(false);
                 router.replace("/browse");
+                fetchEquipment({});
               }}
               className="mt-4 w-full rounded-lg border border-line py-2 text-xs font-bold text-ink-muted hover:text-cheesco-yellow"
             >
@@ -177,13 +212,19 @@ export function BrowseClient() {
               {category || "Equipment Catalog"}
             </h1>
             <p className="mt-1 text-sm text-ink-muted">
-              {results.length} verified {results.length === 1 ? "unit" : "units"} ·
-              all rentals managed by Cheesco
+              {loading ? "Loading…" : `${results.length} verified ${results.length === 1 ? "unit" : "units"}`}
+              {" "}· all rentals managed by Cheesco
             </p>
           </div>
         </div>
 
-        {results.length === 0 ? (
+        {loading ? (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="card-surface animate-pulse rounded-xl h-72" />
+            ))}
+          </div>
+        ) : results.length === 0 ? (
           <div className="card-surface mt-8 rounded-xl p-12 text-center">
             <div className="text-4xl">🔍</div>
             <div className="mt-3 font-bold">No machines match your filters</div>
@@ -211,3 +252,4 @@ function FilterGroup({ label, children }: { label: string; children: React.React
     </div>
   );
 }
+

@@ -3,10 +3,10 @@ import { supabase } from '@/lib/supabase/client';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  ctx: RouteContext<'/api/admin/equipment/[id]/reject'>
 ) {
   try {
-    const equipmentId = params.id;
+    const { id: equipmentId } = await ctx.params;
     const body = await request.json();
 
     // Verify authentication

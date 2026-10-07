@@ -7,10 +7,11 @@ import { useAuth } from "@/lib/contexts/auth-context";
 import { ThemeToggle } from "./theme-toggle";
 
 const NAV_LINKS = [
-  { href: "/browse", label: "Browse Equipment" },
+  { href: "/browse", label: "Browse" },
   { href: "/browse?listing=rent", label: "Rent" },
-  { href: "/browse?listing=buy", label: "Buy" },
   { href: "/how-it-works", label: "How It Works" },
+  { href: "/about", label: "About" },
+  { href: "/contact", label: "Contact" },
 ];
 
 export function Navbar() {

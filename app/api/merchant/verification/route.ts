@@ -49,14 +49,16 @@ export async function GET(request: NextRequest) {
       verificationStatus: merchantProfile.verification_status,
       verificationNotes: merchantProfile.verification_notes,
       verifiedAt: merchantProfile.verified_at,
-      verifiedBy: merchantProfile.verified_by ?
-        (await supabase
-          .from('users')
-          .select('full_name')
-          .eq('id', merchantProfile.verified_by)
-          .single()
-          .then(res => res.data?.full_name || null)
-          .catch(() => null)) : null,
+      verifiedBy: merchantProfile.verified_by
+        ? await (async () => {
+            const { data } = await supabase
+              .from('users')
+              .select('full_name')
+              .eq('id', merchantProfile.verified_by)
+              .single();
+            return data?.full_name || null;
+          })().catch(() => null)
+        : null,
       documents: (documents || []).map(doc => ({
         id: doc.id,
         documentType: doc.document_type,

@@ -480,3 +480,24 @@ html[data-theme="light"] .bg-danger-light {
 html[data-theme="light"] .bg-warning-light {
   background: #fffbeb;
 }
+
+/* ─── HAZARD STRIPE ACCENT (yellow + black diagonal) ─── */
+.hazard-bar {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--color-cheesco-yellow),
+    var(--color-cheesco-yellow) 6px,
+    #0a0d14 6px,
+    #0a0d14 12px
+  );
+}
+
+html[data-theme="light"] .hazard-bar {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--color-cheesco-yellow),
+    var(--color-cheesco-yellow) 6px,
+    #1a1410 6px,
+    #1a1410 12px
+  );
+}

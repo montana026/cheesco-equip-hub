@@ -1,8 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { CATEGORY_META, EQUIPMENT, sponsoredRank } from "@/lib/seed";
+import { CATEGORY_META } from "@/lib/seed";
 import type { Equipment } from "@/lib/types";
 import { fmtNgn } from "@/lib/format";
 
@@ -65,6 +66,12 @@ function PromotedBadge({ tier }: { tier: Equipment["promotionTier"] }) {
 }
 
 export function EquipmentCard({ eq }: { eq: Equipment }) {
+  // images can be string[] (normalized) or object[] (raw Supabase join)
+  const imgSrc: string =
+    typeof eq.images?.[0] === "string"
+      ? (eq.images[0] as string)
+      : ((eq.images?.[0] as any)?.image_url ?? "");
+
   return (
     <Link
       href={`/equipment/${eq.slug}`}
@@ -74,7 +81,7 @@ export function EquipmentCard({ eq }: { eq: Equipment }) {
       <div className="relative h-44 overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={eq.images[0]}
+          src={imgSrc}
           alt={eq.name}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
@@ -108,8 +115,54 @@ export function EquipmentCard({ eq }: { eq: Equipment }) {
   );
 }
 
+
 export function SponsoredShowcase() {
-  const promoted = sponsoredRank(EQUIPMENT).slice(0, 8);
+  const [items, setItems] = useState<Equipment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/equipment?limit=8")
+      .then((r) => r.json())
+      .then((json) => {
+        const raw: any[] = json.data ?? [];
+        // Normalize and sort by promotionTier
+        const PROMO_ORDER: Record<string, number> = {
+          HOMEPAGE_HERO_SPOTLIGHT: 0,
+          HOMEPAGE_FEATURED_GRID: 1,
+          CATEGORY_TOP_BOOST: 2,
+          SEARCH_FIRST_PAGE: 3,
+          NONE: 9,
+        };
+        const normalized = raw.map((r) => ({
+          ...r,
+          // map snake_case fields the card needs
+          locationCity: r.location_city ?? r.locationCity,
+          locationState: r.location_state ?? r.locationState,
+          operatingHours: r.operating_hours ?? r.operatingHours ?? 0,
+          listingType: r.listing_type ?? r.listingType,
+          merchantRentalRate: r.merchant_rental_rate ?? r.merchantRentalRate,
+          cheescoAdjustedRate: r.cheesco_adjusted_rate ?? r.cheescoAdjustedRate,
+          salePrice: r.sale_price ?? r.salePrice,
+          isOperatorIncluded: r.is_operator_included ?? r.isOperatorIncluded,
+          isDeliveryAvailable: r.is_delivery_available ?? r.isDeliveryAvailable,
+          isFeatured: r.is_featured ?? r.isFeatured ?? false,
+          promotionTier: r.promotion_tier ?? r.promotionTier ?? "NONE",
+          availabilityStatus: r.availability_status ?? r.availabilityStatus,
+          verificationStatus: r.verification_status ?? r.verificationStatus,
+          images: r.images?.map((i: any) => i.image_url ?? i).filter(Boolean) ?? [r.images?.[0]].filter(Boolean),
+        }));
+        const sorted = [...normalized].sort(
+          (a, b) =>
+            (PROMO_ORDER[a.promotionTier] ?? 9) -
+            (PROMO_ORDER[b.promotionTier] ?? 9) ||
+            Number(b.isFeatured) - Number(a.isFeatured)
+        );
+        setItems(sorted.slice(0, 8));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
       <SectionHeading
@@ -118,13 +171,16 @@ export function SponsoredShowcase() {
         sub="Paid placements from verified merchants — clearly labelled, performance-tracked."
       />
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {promoted.map((eq) => (
-          <EquipmentCard key={eq.id} eq={eq} />
-        ))}
+        {loading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="card-surface animate-pulse rounded-xl h-64" />
+            ))
+          : items.map((eq) => <EquipmentCard key={eq.id} eq={eq} />)}
       </div>
     </section>
   );
 }
+
 
 const LIFECYCLE = [
   ["Request", "Customer submits a verified request — no instant self-service."],

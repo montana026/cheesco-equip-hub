@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import { setLocalSession } from "@/lib/auth";
+import { setLocalSession, getSession } from "@/lib/auth";
 import type { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -59,18 +59,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (session?.user) {
       setUser(session.user);
       await fetchUserProfile(session.user.id);
+    } else {
+      const local = getSession();
+      if (local) {
+        setUser({ id: local.id, email: local.email } as User);
+        setProfile(local);
+      }
     }
   };
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    const loadSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
+        setUser(session.user);
         await fetchUserProfile(session.user.id);
+      } else {
+        const local = getSession();
+        if (local) {
+          setUser({ id: local.id, email: local.email } as User);
+          setProfile(local);
+        }
       }
       setLoading(false);
-    });
+    };
+    
+    loadSession();
 
     // Listen for auth changes
     const {
@@ -80,9 +95,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Only update state on actual sign-in/sign-out events
       if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-        setUser(session?.user ?? null);
         if (session?.user) {
+          setUser(session.user);
           await fetchUserProfile(session.user.id);
+        } else {
+          const local = getSession();
+          if (local) {
+            setUser({ id: local.id, email: local.email } as User);
+            setProfile(local);
+          }
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);

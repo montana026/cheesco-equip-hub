@@ -4,10 +4,10 @@ import { supabase } from '@/lib/supabase/client';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  ctx: RouteContext<'/api/quotations/[id]/decline'>
 ) {
   try {
-    const quotationId = params.id;
+    const { id: quotationId } = await ctx.params;
 
     // Verify user is authenticated customer
     const authHeader = request.headers.get('authorization');

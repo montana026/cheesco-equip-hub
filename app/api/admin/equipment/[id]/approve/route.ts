@@ -4,10 +4,10 @@ import { notificationService } from '@/lib/services/notification.service';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  ctx: RouteContext<'/api/admin/equipment/[id]/approve'>
 ) {
   try {
-    const equipmentId = params.id;
+    const { id: equipmentId } = await ctx.params;
 
     // Verify authentication
     const authHeader = request.headers.get('authorization');

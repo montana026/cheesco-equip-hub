@@ -13,7 +13,7 @@ export function generatePageMetadata(
     openGraph: {
       title,
       description,
-      image: image || 'https://cheescoequiphub.com/og-image.jpg',
+      images: [image || 'https://cheescoequiphub.com/og-image.jpg'],
       url: url || 'https://cheescoequiphub.com',
       type: 'website',
     },

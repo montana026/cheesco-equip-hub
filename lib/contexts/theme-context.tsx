@@ -32,10 +32,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.setAttribute('data-theme', newTheme);
   };
 
-  if (!mounted) {
-    return <>{children}</>;
-  }
-
+  // Always render the Provider so useTheme() never throws during SSR/prerender.
+  // Before mount, theme defaults to 'dark'; after hydration it reflects saved preference.
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
       {children}
@@ -43,10 +41,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function useTheme() {
+export function useTheme(): ThemeContextType {
   const context = useContext(ThemeContext);
+  // Return a safe fallback during SSR/prerender if context is not yet available
   if (!context) {
-    throw new Error('useTheme must be used within ThemeProvider');
+    return { theme: 'dark', toggleTheme: () => {} };
   }
   return context;
 }

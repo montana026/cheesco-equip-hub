@@ -167,11 +167,16 @@ export const equipmentService = {
    * Check equipment availability for date range
    */
   async checkAvailability(equipmentId: string, startDate: Date, endDate: Date) {
+    const start = startDate.toISOString();
+    const end = endDate.toISOString();
+
+    // Overlap: existing block starts before our end AND ends after our start
     const { data, error } = await supabase
       .from('equipment_availability')
       .select('*')
       .eq('equipment_id', equipmentId)
-      .overlaps('blocked_from', 'blocked_to', [startDate.toISOString(), endDate.toISOString()]);
+      .lt('blocked_from', end)
+      .gt('blocked_to', start);
 
     if (error) throw error;
 

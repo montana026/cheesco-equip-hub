@@ -4,10 +4,10 @@ import { supabase } from '@/lib/supabase/client';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  ctx: RouteContext<'/api/logistics/[id]/confirm-delivery'>
 ) {
   try {
-    const logisticsId = params.id;
+    const { id: logisticsId } = await ctx.params;
     const body = await request.json();
     const { notes } = body;
 

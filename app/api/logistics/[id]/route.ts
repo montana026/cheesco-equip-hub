@@ -4,10 +4,10 @@ import { supabase } from '@/lib/supabase/client';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  ctx: RouteContext<'/api/logistics/[id]'>
 ) {
   try {
-    const logisticsId = params.id;
+    const { id: logisticsId } = await ctx.params;
     const body = await request.json();
 
     // Verify user is operations admin

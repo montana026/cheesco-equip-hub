@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { equipmentService } from '@/lib/services/equipment.service';
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { slug: string } }
+  _request: NextRequest,
+  ctx: RouteContext<'/api/equipment/[slug]'>
 ) {
   try {
-    const slug = params.slug;
+    const { slug } = await ctx.params;
     const equipment = await equipmentService.getBySlug(slug);
 
     if (!equipment) {

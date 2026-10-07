@@ -23,10 +23,18 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
     title: "Company",
     links: [
-      { label: "About Cheesco", href: "/" },
-      { label: "Operations Center", href: "/admin/operations" },
+      { label: "About Cheesco", href: "/about" },
+      { label: "Case Studies", href: "/case-studies" },
+      { label: "Contact Us", href: "/contact" },
       { label: "Support", href: "/" },
-      { label: "Terms & Agreements", href: "/" },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Privacy Policy", href: "/privacy" },
+      { label: "Terms & Agreements", href: "/terms" },
+      { label: "Operations Center", href: "/admin/operations" },
     ],
   },
 ];

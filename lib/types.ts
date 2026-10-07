@@ -32,6 +32,8 @@ export type EquipmentCategory =
 
 export type ListingType = "FOR_SALE" | "FOR_RENT" | "FOR_SALE_AND_RENT";
 
+export type EquipmentCondition = "NEW" | "USED_EXCELLENT" | "USED_GOOD" | "USED_FAIR";
+
 export type EquipmentVerificationStatus =
   | "PENDING"
   | "VERIFIED"
@@ -65,7 +67,7 @@ export interface Equipment {
   brand: string;
   model: string;
   year: number;
-  condition: "NEW" | "USED_EXCELLENT" | "USED_GOOD" | "USED_FAIR";
+  condition: EquipmentCondition;
   locationState: string;
   locationCity: string;
   operatingHours: number;
@@ -217,6 +219,8 @@ export interface SalesTransaction {
 export type DepositStatus = "HELD" | "RELEASED" | "PARTIALLY_DEDUCTED" | "FULLY_DEDUCTED";
 
 export type PaymentType = "RENTAL_FEE" | "DAMAGE_DEPOSIT" | "SALE_ESCROW" | "AD_CAMPAIGN_FEE";
+
+export type PaymentStatus = "PENDING" | "CONFIRMED" | "FAILED" | "REFUNDED";
 
 export interface PaymentRecord {
   id: string;

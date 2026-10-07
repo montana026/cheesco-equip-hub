@@ -8,6 +8,7 @@ import { DashboardShell } from "@/components/dashboard-shell";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { fmtNgnFull } from "@/lib/format";
+import { storageService } from "@/lib/services/storage.service";
 
 const NAV = [
   { href: "/merchant/dashboard", label: "Overview" },
@@ -116,13 +117,14 @@ export default function MerchantVerificationPage() {
 
     try {
       const token = localStorage.getItem("auth_token");
+      if (!user) throw new Error("Not authenticated");
 
       // Upload documents to Supabase Storage
       const uploadResults = await storageService.uploadMerchantDocuments(
         documents,
         user.id // Using user.id as merchantId for now - this should come from user profile
       );
-      const documentUrls = uploadResults.map(r => r.url);
+      const documentUrls = uploadResults.map((r: { url: string }) => r.url);
 
       const payload = {
         documentType: selectedDocType,
