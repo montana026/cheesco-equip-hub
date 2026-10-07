@@ -32,27 +32,30 @@ export function DashboardShell({
   return (
     <SessionContext.Provider value={user}>
       <div className="flex min-h-screen">
-        {/* sidebar */}
-        <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line-soft bg-canvas-deep lg:flex">
-          <Link href="/" className="flex items-center gap-2.5 px-5 py-5">
+        {/* sidebar (dark navy matching reference design) */}
+        <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-zinc-800 bg-[#0A0D14] text-white lg:flex">
+          <Link href="/" className="flex items-center gap-2.5 px-5 py-5 border-b border-zinc-800/80">
             <CheescoLogo size={32} />
-            <span className="text-sm font-black tracking-widest">CHEESCO</span>
+            <div className="flex flex-col">
+              <span className="text-xs font-black tracking-widest text-white">CHEESCO</span>
+              <span className="text-[9px] font-bold tracking-[0.2em] text-cheesco-yellow">EQUIP HUB</span>
+            </div>
           </Link>
-          <div className="mx-4 rounded-lg border border-line-soft bg-card px-3 py-2.5">
-            <div className="truncate text-sm font-bold">{displayName}</div>
-            <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-cheesco-yellow">
+          <div className="mx-4 mt-4 rounded-xl border border-zinc-800 bg-zinc-900/90 px-3.5 py-2.5">
+            <div className="truncate text-xs font-bold text-white">{displayName}</div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-cheesco-yellow">
               <span className="h-1.5 w-1.5 rounded-full bg-cheesco-yellow" />
               {displayRole}
             </div>
           </div>
-          <nav className="mt-4 flex-1 space-y-1 px-3 pb-6">
+          <nav className="mt-5 flex-1 space-y-1 px-3 pb-6">
             {nav.map((n) => (
               <Link
                 key={n.href}
                 href={n.href}
-                className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold text-ink-muted transition-colors hover:bg-card hover:text-cheesco-yellow"
+                className="flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-bold text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-cheesco-yellow"
               >
-                {n.label}
+                <span>{n.label}</span>
                 {n.badge != null && n.badge !== 0 && (
                   <span className="rounded-full bg-cheesco-yellow px-2 py-0.5 text-[10px] font-black text-canvas">
                     {n.badge}
@@ -61,10 +64,10 @@ export function DashboardShell({
               </Link>
             ))}
           </nav>
-          <div className="border-t border-line-soft p-3">
+          <div className="border-t border-zinc-800 p-3">
             <button
               onClick={() => { logout(); window.location.href = "/"; }}
-              className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-ink-muted hover:bg-card hover:text-danger"
+              className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-zinc-400 hover:bg-zinc-800 hover:text-red-400"
             >
               Sign out
             </button>

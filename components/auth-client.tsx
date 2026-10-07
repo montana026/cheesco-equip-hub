@@ -141,167 +141,202 @@ export function AuthClient({ mode }: { mode: "login" | "register" }) {
     }
   };
 
+  const [agreeTerms, setAgreeTerms] = useState(true);
+
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-black">
-            {mode === "login" ? "Welcome Back" : "Create Account"}
+    <div className="min-h-screen flex items-center justify-center px-4 py-16 bg-canvas">
+      <div className="w-full max-w-md card-surface rounded-2xl p-6 sm:p-8 shadow-xl border border-line-soft">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-black text-ink tracking-tight">
+            {mode === "login" ? "Welcome Back" : "Create Your Account"}
           </h1>
-          <p className="mt-2 text-ink-muted">
+          <p className="mt-1.5 text-xs text-ink-muted">
             {mode === "login"
-              ? "Sign in to manage your equipment transactions"
-              : "Join Cheesco's managed equipment marketplace"}
+              ? "Sign in to access your equipment hub"
+              : "Join Cheesco and start listing your equipment."}
           </p>
         </div>
 
         {mode === "register" && (
-          <div className="mb-6 flex gap-3">
+          <div className="mb-6 flex rounded-xl bg-canvas-deep p-1 ring-1 ring-line-soft">
             <button
               type="button"
               onClick={() => setRole("CUSTOMER")}
-              className={`flex-1 rounded-lg border py-3 text-sm font-bold transition-all ${
+              className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
                 role === "CUSTOMER"
-                  ? "border-cheesco-yellow bg-cheesco-yellow/10 text-cheesco-yellow"
-                  : "border-line bg-card text-ink-muted hover:border-line-soft"
+                  ? "bg-cheesco-yellow text-canvas shadow-sm"
+                  : "text-ink-muted hover:text-ink"
               }`}
             >
-              I want to rent/buy
+              I'm a Customer
             </button>
             <button
               type="button"
               onClick={() => setRole("MERCHANT")}
-              className={`flex-1 rounded-lg border py-3 text-sm font-bold transition-all ${
+              className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${
                 role === "MERCHANT"
-                  ? "border-cheesco-yellow bg-cheesco-yellow/10 text-cheesco-yellow"
-                  : "border-line bg-card text-ink-muted hover:border-line-soft"
+                  ? "bg-cheesco-yellow text-canvas shadow-sm"
+                  : "text-ink-muted hover:text-ink"
               }`}
             >
-              I own equipment
+              I'm a Merchant
             </button>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           {mode === "register" && (
             <>
               <div>
-                <label className="block text-sm font-semibold mb-1">
-                  Full Name {role === "MERCHANT" && "(or Business Owner Name)"}
+                <label className="block text-xs font-bold text-ink mb-1">
+                  Full Name
                 </label>
                 <input
                   type="text"
+                  placeholder="John Doe"
                   value={formData.fullName}
                   onChange={(e) =>
                     setFormData({ ...formData, fullName: e.target.value })
                   }
-                  className="auth-input"
+                  className="h-10 w-full rounded-xl bg-canvas-deep px-3 text-xs text-ink outline-none ring-1 ring-line-soft focus:ring-1 focus:ring-cheesco-yellow"
                   required
                 />
               </div>
 
               {role === "MERCHANT" && (
                 <div>
-                  <label className="block text-sm font-semibold mb-1">
+                  <label className="block text-xs font-bold text-ink mb-1">
                     Business Name
                   </label>
                   <input
                     type="text"
+                    placeholder="ABC Equipment Ltd"
                     value={formData.businessName}
                     onChange={(e) =>
                       setFormData({ ...formData, businessName: e.target.value })
                     }
-                    className="auth-input"
+                    className="h-10 w-full rounded-xl bg-canvas-deep px-3 text-xs text-ink outline-none ring-1 ring-line-soft focus:ring-1 focus:ring-cheesco-yellow"
                     required
                   />
                 </div>
               )}
 
               <div>
-                <label className="block text-sm font-semibold mb-1">
-                  Phone Number
+                <label className="block text-xs font-bold text-ink mb-1">
+                  Email Address
                 </label>
                 <input
-                  type="tel"
-                  value={formData.phone}
+                  type="email"
+                  placeholder="you@company.com"
+                  value={formData.email}
                   onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
+                    setFormData({ ...formData, email: e.target.value })
                   }
-                  placeholder="+234"
-                  className="auth-input"
+                  className="h-10 w-full rounded-xl bg-canvas-deep px-3 text-xs text-ink outline-none ring-1 ring-line-soft focus:ring-1 focus:ring-cheesco-yellow"
+                  required
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-ink mb-1">
+                  Phone Number
+                </label>
+                <div className="flex gap-2">
+                  <span className="flex h-10 items-center justify-center rounded-xl bg-canvas-deep px-3 text-xs font-bold text-ink ring-1 ring-line-soft">
+                    🇳🇬 +234
+                  </span>
+                  <input
+                    type="tel"
+                    placeholder="801 234 5678"
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                    className="h-10 flex-1 rounded-xl bg-canvas-deep px-3 text-xs text-ink outline-none ring-1 ring-line-soft focus:ring-1 focus:ring-cheesco-yellow"
+                  />
+                </div>
               </div>
             </>
           )}
 
-          <div>
-            <label className="block text-sm font-semibold mb-1">Email</label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) =>
-                setFormData({ ...formData, email: e.target.value })
-              }
-              className="auth-input"
-              required
-            />
-          </div>
+          {mode === "login" && (
+            <div>
+              <label className="block text-xs font-bold text-ink mb-1">Email Address</label>
+              <input
+                type="email"
+                placeholder="you@company.com"
+                value={formData.email}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+                className="h-10 w-full rounded-xl bg-canvas-deep px-3 text-xs text-ink outline-none ring-1 ring-line-soft focus:ring-1 focus:ring-cheesco-yellow"
+                required
+              />
+            </div>
+          )}
 
           <div>
-            <label className="block text-sm font-semibold mb-1">Password</label>
+            <label className="block text-xs font-bold text-ink mb-1">Password</label>
             <input
               type="password"
+              placeholder="••••••••••••"
               value={formData.password}
               onChange={(e) =>
                 setFormData({ ...formData, password: e.target.value })
               }
-              className="auth-input"
+              className="h-10 w-full rounded-xl bg-canvas-deep px-3 text-xs text-ink outline-none ring-1 ring-line-soft focus:ring-1 focus:ring-cheesco-yellow"
               required
               minLength={6}
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-cheesco-yellow py-3 font-black text-canvas hover:bg-cheesco-yellow-bright disabled:opacity-50"
-          >
-            {loading
-              ? mode === "login"
-                ? "Signing in..."
-                : "Creating account..."
-              : mode === "login"
-              ? "Sign In"
-              : "Create Account"}
-          </button>
+          {mode === "register" && (
+            <label className="flex items-center gap-2 pt-1 text-xs text-ink-muted cursor-pointer">
+              <input
+                type="checkbox"
+                checked={agreeTerms}
+                onChange={(e) => setAgreeTerms(e.target.checked)}
+                className="h-4 w-4 rounded accent-cheesco-yellow"
+                required
+              />
+              <span>I agree to the <Link href="/terms" className="text-cheesco-yellow hover:underline">Terms and Conditions</Link></span>
+            </label>
+          )}
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={loading || (mode === "register" && !agreeTerms)}
+              className="h-11 w-full rounded-xl bg-cheesco-yellow font-black text-xs text-canvas shadow-md transition-all hover:bg-cheesco-yellow-bright hover:shadow-lg disabled:opacity-50"
+            >
+              {loading
+                ? mode === "login"
+                  ? "Signing in..."
+                  : "Creating account..."
+                : mode === "login"
+                ? "Sign In"
+                : "Create Account"}
+            </button>
+          </div>
         </form>
 
-        <div className="mt-6 text-center text-sm">
+        <div className="mt-5 text-center text-xs">
           {mode === "login" ? (
             <p className="text-ink-muted">
               Don't have an account?{" "}
               <Link href="/register" className="font-bold text-cheesco-yellow hover:underline">
-                Sign up
+                Sign Up
               </Link>
             </p>
           ) : (
             <p className="text-ink-muted">
               Already have an account?{" "}
               <Link href="/login" className="font-bold text-cheesco-yellow hover:underline">
-                Sign in
+                Login
               </Link>
             </p>
           )}
         </div>
-
-        {mode === "register" && role === "MERCHANT" && (
-          <div className="mt-6 rounded-lg border border-cheesco-yellow/30 bg-cheesco-yellow/10 p-4 text-sm">
-            <p className="font-bold text-cheesco-yellow">Merchant Verification Required</p>
-            <p className="mt-2 text-ink-muted">
-              After registration, you'll need to complete merchant verification before you can publish equipment listings.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

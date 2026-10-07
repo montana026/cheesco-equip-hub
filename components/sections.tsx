@@ -28,26 +28,56 @@ export function TrustBar() {
 }
 
 export function CategoryCards() {
-  const cats = Object.entries(CATEGORY_META);
+  const cats = [
+    { name: "Excavators", icon: "🚜", image: "https://images.unsplash.com/photo-1526835657244-e8a5c2c0e3c2?auto=format&fit=crop&w=400&q=75" },
+    { name: "Cranes", icon: "🏗️", image: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=400&q=75" },
+    { name: "Trucks", icon: "🚛", image: "https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=400&q=75" },
+    { name: "Bulldozers", icon: "🚜", image: "https://images.unsplash.com/photo-1567093324170-cb5d3be35a1c?auto=format&fit=crop&w=400&q=75" },
+    { name: "Loaders", icon: "🚜", image: "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=400&q=75" },
+    { name: "Generators", icon: "⚡", image: "https://images.unsplash.com/photo-1581092160562-40aa08e78837?auto=format&fit=crop&w=400&q=75" },
+    { name: "Lowbeds", icon: "🚛", image: "https://images.unsplash.com/photo-1586191582056-b7f0a7f7dd55?auto=format&fit=crop&w=400&q=75" },
+    { name: "Forklifts", icon: "🏗️", image: "https://images.unsplash.com/photo-1586528116311-ad8dd5c8310d?auto=format&fit=crop&w=400&q=75" },
+  ];
+
   return (
-    <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-      <SectionHeading eyebrow="Fleet Coverage" title="Every class of heavy plant" />
-      <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {cats.map(([name, meta], i) => (
+    <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-black tracking-tight text-ink sm:text-2xl">
+          Popular Categories
+        </h2>
+        <Link
+          href="/browse"
+          className="text-xs font-bold text-cheesco-yellow hover:underline flex items-center gap-1"
+        >
+          <span>View All</span>
+          <span>&gt;</span>
+        </Link>
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+        {cats.map((cat, i) => (
           <motion.div
-            key={name}
-            initial={{ opacity: 0, y: 20 }}
+            key={cat.name}
+            initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ delay: i * 0.05, duration: 0.5 }}
+            viewport={{ once: true }}
+            transition={{ delay: i * 0.04, duration: 0.4 }}
           >
             <Link
-              href={`/browse?category=${encodeURIComponent(name)}`}
-              className="card-surface group block rounded-xl p-4 transition-all hover:border-cheesco-yellow/40 hover:bg-card-raised"
+              href={`/browse?category=${encodeURIComponent(cat.name)}`}
+              className="card-surface group flex flex-col items-center rounded-2xl p-3 text-center transition-all hover:-translate-y-1 hover:border-cheesco-yellow/50 hover:shadow-lg"
             >
-              <div className="text-2xl">{meta.icon}</div>
-              <div className="mt-2 font-bold group-hover:text-cheesco-yellow">{name}</div>
-              <div className="mt-1 text-xs text-ink-faint">{meta.blurb}</div>
+              <div className="flex h-14 w-full items-center justify-center overflow-hidden rounded-xl bg-canvas-deep/80 p-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={cat.image}
+                  alt={cat.name}
+                  className="h-full w-full object-cover rounded-lg transition-transform duration-300 group-hover:scale-110"
+                />
+              </div>
+              <div className="mt-2 text-xs font-bold text-ink group-hover:text-cheesco-yellow truncate w-full">
+                {cat.name}
+              </div>
             </Link>
           </motion.div>
         ))}
@@ -56,86 +86,127 @@ export function CategoryCards() {
   );
 }
 
-function PromotedBadge({ tier }: { tier: Equipment["promotionTier"] }) {
-  if (tier === "NONE") return null;
-  return (
-    <span className="absolute left-3 top-3 z-10 rounded-md bg-cheesco-yellow px-2 py-1 text-[10px] font-black tracking-wider text-canvas shadow">
-      PROMOTED BY CHEESCO
-    </span>
-  );
-}
-
 export function EquipmentCard({ eq }: { eq: Equipment }) {
-  // images can be string[] (normalized) or object[] (raw Supabase join)
+  const [saved, setSaved] = useState(false);
+
   const imgSrc: string =
     typeof eq.images?.[0] === "string"
       ? (eq.images[0] as string)
-      : ((eq.images?.[0] as any)?.image_url ?? "");
+      : ((eq.images?.[0] as any)?.image_url ?? "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=70");
+
+  const isRent = eq.listingType === "FOR_RENT" || eq.listingType === "FOR_SALE_AND_RENT";
+  const isSale = eq.listingType === "FOR_SALE";
 
   return (
-    <Link
-      href={`/equipment/${eq.slug}`}
-      className="card-surface group relative flex flex-col overflow-hidden rounded-xl transition-all hover:border-cheesco-yellow/40 hover:shadow-[0_16px_48px_rgba(0,0,0,0.5)]"
-    >
-      <PromotedBadge tier={eq.promotionTier} />
-      <div className="relative h-44 overflow-hidden">
+    <div className="card-surface group relative flex flex-col overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:border-cheesco-yellow/40 hover:shadow-[0_12px_32px_rgba(0,0,0,0.4)]">
+      {/* Top Image Box */}
+      <div className="relative h-44 w-full overflow-hidden bg-canvas-deep">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={imgSrc}
           alt={eq.name}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-canvas/70 to-transparent" />
-        <span className="absolute bottom-2 left-3 rounded bg-canvas/80 px-2 py-0.5 text-[10px] font-bold tracking-wider text-cheesco-yellow">
-          {eq.category.toUpperCase()}
+
+        {/* Listing Type Tag Badge (Yellow pill from design) */}
+        <span className="absolute left-3 top-3 rounded-md bg-cheesco-yellow px-2.5 py-1 text-[11px] font-black tracking-wide text-canvas shadow-md">
+          {isSale ? "For Sale" : "For Rent"}
         </span>
+
+        {/* Heart / Favorite Button */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setSaved(!saved);
+          }}
+          aria-label="Save to favorites"
+          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-canvas/80 text-white backdrop-blur-sm transition-all hover:scale-110 hover:bg-canvas"
+        >
+          <svg
+            className={`h-4 w-4 transition-colors ${saved ? "fill-red-500 text-red-500" : "fill-none text-white"}`}
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </svg>
+        </button>
       </div>
+
+      {/* Card Content */}
       <div className="flex flex-1 flex-col p-4">
-        <div className="font-bold leading-snug group-hover:text-cheesco-yellow">{eq.name}</div>
-        <div className="mt-1 text-xs text-ink-faint">
-          {eq.locationCity}, {eq.locationState} · {eq.year} · {eq.operatingHours.toLocaleString()} hrs
+        {/* Title */}
+        <Link href={`/equipment/${eq.slug}`}>
+          <h3 className="text-sm font-bold text-ink leading-snug line-clamp-1 group-hover:text-cheesco-yellow transition-colors">
+            {eq.name}
+          </h3>
+        </Link>
+
+        {/* Location */}
+        <div className="mt-1 flex items-center gap-1 text-[11px] text-ink-muted">
+          <span>📍</span>
+          <span className="truncate">{eq.locationCity}, {eq.locationState}</span>
         </div>
-        <div className="mt-auto pt-3">
-          {eq.listingType !== "FOR_SALE" && (
-            <div className="text-sm">
-              <span className="font-black text-cheesco-yellow">
+
+        {/* Pricing */}
+        <div className="mt-2.5">
+          {isRent ? (
+            <div className="flex items-baseline gap-1">
+              <span className="text-base font-black text-ink">
                 ₦{fmtNgn(eq.cheescoAdjustedRate ?? eq.merchantRentalRate)}
               </span>
-              <span className="text-ink-faint"> /day · managed rental</span>
+              <span className="text-[11px] text-ink-muted">/ day</span>
             </div>
-          )}
-          {eq.salePrice && (
-            <div className="text-xs text-ink-muted">
-              Buy: ₦{fmtNgn(eq.salePrice)}
+          ) : (
+            <div className="flex items-baseline gap-1">
+              <span className="text-base font-black text-ink">
+                ₦{fmtNgn(eq.salePrice ?? eq.merchantRentalRate * 100)}
+              </span>
             </div>
           )}
         </div>
+
+        {/* Metadata Specs Row: Year, Hours, Rating */}
+        <div className="mt-3 flex items-center justify-between border-t border-line-soft pt-2.5 text-[11px] text-ink-muted">
+          <div className="flex items-center gap-3">
+            <span>📅 {eq.year || 2021}</span>
+            <span>⏱️ {(eq.operatingHours || 2500).toLocaleString()} hrs</span>
+          </div>
+          <div className="flex items-center gap-1 font-semibold text-cheesco-yellow">
+            <span>★</span>
+            <span className="text-ink">4.8</span>
+            <span className="text-[10px] text-ink-faint">(12)</span>
+          </div>
+        </div>
+
+        {/* Full-width View Details Yellow Button */}
+        <div className="mt-3.5">
+          <Link
+            href={`/equipment/${eq.slug}`}
+            className="flex h-9 w-full items-center justify-center rounded-xl bg-cheesco-yellow px-4 text-xs font-black text-canvas transition-all hover:bg-cheesco-yellow-bright hover:shadow-md"
+          >
+            View Details
+          </Link>
+        </div>
       </div>
-    </Link>
+    </div>
   );
 }
-
 
 export function SponsoredShowcase() {
   const [items, setItems] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterTab, setFilterTab] = useState<"ALL" | "FOR_SALE" | "FOR_RENT">("ALL");
 
   useEffect(() => {
-    fetch("/api/equipment?limit=8")
+    fetch("/api/equipment?limit=12")
       .then((r) => r.json())
       .then((json) => {
         const raw: any[] = json.data ?? [];
-        // Normalize and sort by promotionTier
-        const PROMO_ORDER: Record<string, number> = {
-          HOMEPAGE_HERO_SPOTLIGHT: 0,
-          HOMEPAGE_FEATURED_GRID: 1,
-          CATEGORY_TOP_BOOST: 2,
-          SEARCH_FIRST_PAGE: 3,
-          NONE: 9,
-        };
         const normalized = raw.map((r) => ({
           ...r,
-          // map snake_case fields the card needs
           locationCity: r.location_city ?? r.locationCity,
           locationState: r.location_state ?? r.locationState,
           operatingHours: r.operating_hours ?? r.operatingHours ?? 0,
@@ -151,71 +222,195 @@ export function SponsoredShowcase() {
           verificationStatus: r.verification_status ?? r.verificationStatus,
           images: r.images?.map((i: any) => i.image_url ?? i).filter(Boolean) ?? [r.images?.[0]].filter(Boolean),
         }));
-        const sorted = [...normalized].sort(
-          (a, b) =>
-            (PROMO_ORDER[a.promotionTier] ?? 9) -
-            (PROMO_ORDER[b.promotionTier] ?? 9) ||
-            Number(b.isFeatured) - Number(a.isFeatured)
-        );
-        setItems(sorted.slice(0, 8));
+        setItems(normalized);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
+  const filteredItems = items.filter((item) => {
+    if (filterTab === "FOR_SALE") return item.listingType === "FOR_SALE" || item.listingType === "FOR_SALE_AND_RENT";
+    if (filterTab === "FOR_RENT") return item.listingType === "FOR_RENT" || item.listingType === "FOR_SALE_AND_RENT";
+    return true;
+  });
+
   return (
-    <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-      <SectionHeading
-        eyebrow="Featured & Sponsored"
-        title="Machines in the spotlight"
-        sub="Paid placements from verified merchants — clearly labelled, performance-tracked."
-      />
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-xl font-black tracking-tight text-ink sm:text-2xl">
+          Featured Equipment
+        </h2>
+
+        {/* For Sale / For Rent Switcher Tabs from design */}
+        <div className="flex items-center gap-1.5 rounded-xl bg-card p-1 ring-1 ring-line-soft">
+          <button
+            type="button"
+            onClick={() => setFilterTab("ALL")}
+            className={`rounded-lg px-4 py-1.5 text-xs font-bold transition-all ${
+              filterTab === "ALL"
+                ? "bg-cheesco-yellow text-canvas shadow-sm"
+                : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTab("FOR_SALE")}
+            className={`rounded-lg px-4 py-1.5 text-xs font-bold transition-all ${
+              filterTab === "FOR_SALE"
+                ? "bg-cheesco-yellow text-canvas shadow-sm"
+                : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            For Sale
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTab("FOR_RENT")}
+            className={`rounded-lg px-4 py-1.5 text-xs font-bold transition-all ${
+              filterTab === "FOR_RENT"
+                ? "bg-cheesco-yellow text-canvas shadow-sm"
+                : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            For Rent
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {loading
           ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="card-surface animate-pulse rounded-xl h-64" />
+              <div key={i} className="card-surface animate-pulse rounded-2xl h-80" />
             ))
-          : items.map((eq) => <EquipmentCard key={eq.id} eq={eq} />)}
+          : filteredItems.slice(0, 8).map((eq) => <EquipmentCard key={eq.id} eq={eq} />)}
       </div>
     </section>
   );
 }
 
-
-const LIFECYCLE = [
-  ["Request", "Customer submits a verified request — no instant self-service."],
-  ["Verification", "Cheesco confirms equipment, merchant & availability."],
-  ["Quotation", "Operations builds a managed quote with transparent margin."],
-  ["Confirmation", "Customer reviews and accepts or requests revision."],
-  ["Agreement", "Digital rental agreement generated and signed."],
-  ["Payment", "Rental fee paid; damage deposit held in escrow."],
-  ["Logistics", "Lowbed carrier assigned, pre-delivery inspection done."],
-  ["Completion", "Return, post-rental inspection, deposit settled."],
-];
-
+/**
+ * The Rental Workflow (Managed by Cheesco)
+ * 7-step connected circular flow matching exact design in reference image.
+ */
 export function HowItWorks() {
+  const steps = [
+    {
+      num: 1,
+      title: "1. Customer Requests",
+      desc: "Tell us what you need (equipment type, location, duration).",
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+      ),
+    },
+    {
+      num: 2,
+      title: "2. Cheesco Verifies",
+      desc: "We confirm equipment availability, merchant details and condition.",
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+      ),
+    },
+    {
+      num: 3,
+      title: "3. Quotation",
+      desc: "You receive a detailed quote with all costs and terms.",
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+    },
+    {
+      num: 4,
+      title: "4. Customer Confirms",
+      desc: "You review and confirm the quotation.",
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+      ),
+    },
+    {
+      num: 5,
+      title: "5. Payment / Deposit",
+      desc: "Make payment or deposit securely through the platform.",
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+        </svg>
+      ),
+    },
+    {
+      num: 6,
+      title: "6. Delivery",
+      desc: "Equipment is delivered to your project location.",
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      ),
+    },
+    {
+      num: 7,
+      title: "7. Rental",
+      desc: "You start your rental. We track it until completion.",
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+    },
+  ];
+
   return (
-    <section className="border-y border-line-soft bg-canvas-deep/60 py-16">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <SectionHeading
-          eyebrow="The Cheesco Way"
-          title="How it works — the verified lifecycle"
-        />
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {LIFECYCLE.map(([title, desc], i) => (
+    <section className="border-y border-line-soft bg-canvas-deep/80 py-16">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-black tracking-tight text-ink sm:text-3xl">
+            The Rental Workflow (Managed by Cheesco)
+          </h2>
+          <p className="mt-2 text-sm text-ink-muted">
+            From your request to delivery, we handle the entire process.
+          </p>
+        </div>
+
+        {/* Connected 7-Step Workflow Process */}
+        <div className="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
+          {steps.map((s, idx) => (
             <motion.div
-              key={title}
-              initial={{ opacity: 0, y: 24 }}
+              key={s.num}
+              initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-40px" }}
-              transition={{ delay: i * 0.06, duration: 0.5 }}
-              className="card-surface relative rounded-xl p-5"
+              viewport={{ once: true }}
+              transition={{ delay: idx * 0.07, duration: 0.5 }}
+              className="relative flex flex-col items-center text-center"
             >
-              <div className="absolute -top-3 left-5 rounded-md bg-cheesco-yellow px-2.5 py-0.5 text-xs font-black text-canvas">
-                {String(i + 1).padStart(2, "0")}
+              {/* Connector line on desktop */}
+              {idx < steps.length - 1 && (
+                <div className="hidden lg:block absolute left-1/2 top-6 h-0.5 w-full -translate-y-1/2 border-t-2 border-dashed border-cheesco-yellow/40 z-0" />
+              )}
+
+              {/* Step Circle Node */}
+              <div className="relative z-10 flex h-13 w-13 items-center justify-center rounded-full bg-cheesco-yellow text-canvas shadow-lg ring-4 ring-canvas transition-transform hover:scale-110">
+                {s.icon}
               </div>
-              <div className="pt-2 font-bold">{title}</div>
-              <p className="mt-2 text-sm text-ink-muted">{desc}</p>
+
+              {/* Title */}
+              <h3 className="mt-4 text-xs font-black text-ink">
+                {s.title}
+              </h3>
+
+              {/* Description */}
+              <p className="mt-1.5 text-[11px] text-ink-muted leading-relaxed">
+                {s.desc}
+              </p>
             </motion.div>
           ))}
         </div>

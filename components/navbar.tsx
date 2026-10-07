@@ -7,10 +7,10 @@ import { useAuth } from "@/lib/contexts/auth-context";
 import { ThemeToggle } from "./theme-toggle";
 
 const NAV_LINKS = [
-  { href: "/browse", label: "Browse" },
-  { href: "/browse?listing=rent", label: "Rent" },
+  { href: "/", label: "Home" },
+  { href: "/browse", label: "Browse Equipment" },
   { href: "/how-it-works", label: "How It Works" },
-  { href: "/about", label: "About" },
+  { href: "/about", label: "About Us" },
   { href: "/contact", label: "Contact" },
 ];
 
@@ -59,22 +59,22 @@ export function Navbar() {
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-canvas/85 backdrop-blur-xl border-b border-line-soft shadow-[0_8px_32px_rgba(0,0,0,0.45)]"
-          : "bg-transparent"
+          ? "bg-[#0B0F19]/95 backdrop-blur-xl border-b border-zinc-800 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+          : "bg-[#0B0F19] border-b border-zinc-800/80"
       }`}
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex h-18 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-3" aria-label="Cheesco Equip Hub home">
           <CheescoLogo size={38} />
           <CheescoWordmark />
         </Link>
 
-        <nav className="hidden items-center gap-7 md:flex">
+        <nav className="hidden items-center gap-6 lg:gap-8 md:flex">
           {NAV_LINKS.map((l) => (
             <Link
               key={l.href}
               href={l.href}
-              className="text-sm font-semibold text-ink-muted transition-colors hover:text-cheesco-yellow"
+              className="text-sm font-semibold text-zinc-300 transition-colors hover:text-cheesco-yellow"
             >
               {l.label}
             </Link>
@@ -82,18 +82,27 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
+          <Link
+            href="/browse"
+            aria-label="Search Equipment"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-300 transition-colors hover:bg-card hover:text-cheesco-yellow"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </Link>
           <ThemeToggle />
           {user ? (
             <>
               <Link
                 href={getDashboardLink()}
-                className="rounded-lg px-4 py-2 text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
+                className="rounded-lg px-3.5 py-2 text-sm font-semibold text-zinc-300 transition-colors hover:text-white hover:bg-card"
               >
                 Dashboard
               </Link>
               <button
                 onClick={handleSignOut}
-                className="rounded-lg px-4 py-2 text-sm font-semibold text-ink-muted transition-colors hover:text-red-400"
+                className="rounded-lg px-3.5 py-2 text-sm font-semibold text-zinc-400 transition-colors hover:text-red-400"
               >
                 Sign out
               </button>
@@ -102,15 +111,15 @@ export function Navbar() {
             <>
               <Link
                 href="/login"
-                className="rounded-lg px-4 py-2 text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
+                className="rounded-lg px-3.5 py-2 text-sm font-semibold text-zinc-300 transition-colors hover:text-white"
               >
-                Sign in
+                Login
               </Link>
               <Link
                 href="/register"
-                className="rounded-lg bg-cheesco-yellow px-4 py-2 text-sm font-bold text-canvas transition-transform hover:scale-[1.03] hover:bg-cheesco-yellow-bright"
+                className="rounded-xl bg-cheesco-yellow px-5 py-2 text-sm font-bold text-canvas shadow transition-all hover:scale-[1.02] hover:bg-cheesco-yellow-bright hover:shadow-lg"
               >
-                List Your Equipment
+                Sign Up
               </Link>
             </>
           )}

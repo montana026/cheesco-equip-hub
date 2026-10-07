@@ -2,26 +2,26 @@
 
 @theme {
   /* ── Cheesco Official Brand Identity ─────────────────────────── */
-  --color-cheesco-yellow: #d4a80e;
-  --color-cheesco-yellow-bright: #e5b710;
-  --color-cheesco-yellow-dim: #b8920a;
-  --color-cheesco-amber: #d97706;
+  --color-cheesco-yellow: #F5A623;
+  --color-cheesco-yellow-bright: #FFB800;
+  --color-cheesco-yellow-dim: #D98E16;
+  --color-cheesco-amber: #D97706;
 
-  /* Dark Mode (default) */
-  --color-canvas: #0a0d14;
-  --color-canvas-deep: #06080d;
-  --color-card: #121722;
-  --color-card-raised: #1a2130;
-  --color-line: #232b3d;
-  --color-line-soft: #1b2231;
+  /* Premium Light/Clean Slate Design System (Default - from reference image) */
+  --color-canvas: #F4F6F8;
+  --color-canvas-deep: #EAEEF3;
+  --color-card: #FFFFFF;
+  --color-card-raised: #F8FAFC;
+  --color-line: #E2E8F0;
+  --color-line-soft: #EEF2F6;
 
-  --color-ink: #f4f6fb;
-  --color-ink-muted: #9aa4b8;
-  --color-ink-faint: #5d6880;
+  --color-ink: #0F172A;
+  --color-ink-muted: #475569;
+  --color-ink-faint: #94A3B8;
 
-  --color-success: #34d399;
-  --color-danger: #f87171;
-  --color-warn: #fbbf24;
+  --color-success: #10B981;
+  --color-danger: #EF4444;
+  --color-warn: #F59E0B;
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -44,47 +44,40 @@
   }
 }
 
-/* ─── LIGHT MODE: HIGH-CONTRAST PROFESSIONAL REDESIGN ─── */
+/* ─── DEFAULT THEME: CLEAN HIGH-CONTRAST AS SHOWN IN IMAGE ─── */
+html,
 html[data-theme="light"] {
-  /* Neutral, warm background - not pure white */
-  --color-canvas: #f9f7f4;
-  --color-canvas-deep: #f0ebe5;
+  --color-canvas: #F4F6F8;
+  --color-canvas-deep: #EAEEF3;
+  --color-card: #FFFFFF;
+  --color-card-raised: #F8FAFC;
+  --color-line: #E2E8F0;
+  --color-line-soft: #EEF2F6;
 
-  /* Distinct surface layers for clear hierarchy */
-  --color-card: #ffffff;
-  --color-card-raised: #fdfcfb;
+  --color-ink: #0F172A;
+  --color-ink-muted: #475569;
+  --color-ink-faint: #94A3B8;
 
-  /* Strong, visible borders and dividers */
-  --color-line: #d4cec4;
-  --color-line-soft: #e8e3da;
-
-  /* Dark, readable text */
-  --color-ink: #1a1410;
-  --color-ink-muted: #5a5450;
-  --color-ink-faint: #8b8580;
-
-  /* Adjusted status colors for light background */
-  --color-success: #059669;
-  --color-danger: #dc2626;
-  --color-warn: #d97706;
+  --color-success: #10B981;
+  --color-danger: #EF4444;
+  --color-warn: #F59E0B;
 
   color-scheme: light;
 }
 
-html[data-theme="dark"],
-html {
-  --color-canvas: #0a0d14;
-  --color-canvas-deep: #06080d;
+html[data-theme="dark"] {
+  --color-canvas: #0A0D14;
+  --color-canvas-deep: #06080D;
   --color-card: #121722;
-  --color-card-raised: #1a2130;
-  --color-line: #232b3d;
-  --color-line-soft: #1b2231;
-  --color-ink: #f4f6fb;
-  --color-ink-muted: #9aa4b8;
-  --color-ink-faint: #5d6880;
-  --color-success: #34d399;
-  --color-danger: #f87171;
-  --color-warn: #fbbf24;
+  --color-card-raised: #1A2130;
+  --color-line: #232B3D;
+  --color-line-soft: #1B2231;
+  --color-ink: #F4F6FB;
+  --color-ink-muted: #9AA4B8;
+  --color-ink-faint: #5D6880;
+  --color-success: #34D399;
+  --color-danger: #F87171;
+  --color-warn: #FBBF24;
   color-scheme: dark;
 }
 
@@ -95,50 +88,35 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* ─── CARD SURFACES: CLEAR VISUAL DISTINCTION ─── */
+/* ─── CARD SURFACES: CRISP WHITE SHADOW FROM DESIGN ─── */
 .card-surface {
   background: var(--color-card);
   border: 1px solid var(--color-line-soft);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
   transition: all 0.2s ease;
 }
 
-html[data-theme="light"] .card-surface {
-  box-shadow: 0 1px 3px rgba(26, 20, 16, 0.06);
-  border-color: var(--color-line);
+.card-surface:hover {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
 }
 
-html[data-theme="light"] .card-surface:hover {
-  box-shadow: 0 4px 12px rgba(26, 20, 16, 0.08);
-  border-color: var(--color-line-soft);
-}
-
-/* ─── INPUTS & FORM ELEMENTS: HIGH VISIBILITY ─── */
+/* ─── INPUTS & FORM ELEMENTS ─── */
 .auth-input {
   height: 2.75rem;
   width: 100%;
   border-radius: 0.75rem;
-  background: var(--color-canvas-deep);
-  padding-inline: 0.875rem;
-  font-size: 0.875rem;
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
   color: var(--color-ink);
+  padding: 0 0.875rem;
+  font-size: 0.875rem;
   outline: none;
-  border: 1.5px solid var(--color-line-soft);
-  transition: all 0.2s ease;
-}
-
-html[data-theme="light"] .auth-input {
-  background: #fdfcfb;
-  border-color: var(--color-line);
+  transition: all 0.15s ease;
 }
 
 .auth-input:focus {
   border-color: var(--color-cheesco-yellow);
-  box-shadow: 0 0 0 3px rgba(212, 168, 14, 0.1);
-}
-
-html[data-theme="light"] .auth-input:focus {
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(212, 168, 14, 0.15);
+  box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.2);
 }
 
 .auth-input::placeholder {

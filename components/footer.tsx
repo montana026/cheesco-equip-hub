@@ -41,14 +41,14 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
 
 export function Footer() {
   return (
-    <footer className="border-t border-line-soft bg-canvas-deep">
-      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+    <footer className="border-t border-zinc-800 bg-[#0A0D14] text-white">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:px-8 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
           <div className="flex items-center gap-3">
             <CheescoLogo size={40} />
             <CheescoWordmark />
           </div>
-          <p className="mt-4 max-w-xs text-sm text-ink-muted">
+          <p className="mt-4 max-w-xs text-xs text-zinc-400 leading-relaxed">
             The trusted intermediary for heavy-equipment sales, managed rentals,
             sourcing and industrial logistics across Nigeria.
           </p>
@@ -62,7 +62,7 @@ export function Footer() {
             <ul className="mt-4 space-y-2.5">
               {col.links.map((l) => (
                 <li key={l.label}>
-                  <Link href={l.href} className="text-sm text-ink-muted hover:text-ink">
+                  <Link href={l.href} className="text-xs font-medium text-zinc-400 hover:text-white transition-colors">
                     {l.label}
                   </Link>
                 </li>
@@ -71,7 +71,7 @@ export function Footer() {
           </div>
         ))}
       </div>
-      <div className="border-t border-line-soft py-5 text-center text-xs text-ink-faint">
+      <div className="border-t border-zinc-800/80 py-5 text-center text-xs text-zinc-500">
         © {new Date().getFullYear()} Cheesco Equip Hub · Leasing Agency. Every transaction verified.
       </div>
     </footer>

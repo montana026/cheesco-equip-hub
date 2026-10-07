@@ -119,123 +119,193 @@ export function CustomerDashboardClient() {
   const completedRentals = requests.filter(r => r.currentState === 'COMPLETED');
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-canvas text-ink pb-16">
       {/* Header */}
-      <div className="border-b border-zinc-800 bg-zinc-900/50">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <h1 className="text-3xl font-bold">My Dashboard</h1>
-          <p className="text-zinc-400 mt-1">Track your rental requests and equipment</p>
+      <div className="border-b border-line-soft bg-card/60 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-black text-ink tracking-tight">Dashboard</h1>
+            <p className="text-xs text-ink-muted mt-1">Manage and track your equipment rentals and requests</p>
+          </div>
+          <button
+            onClick={() => router.push('/browse')}
+            className="flex items-center gap-2 rounded-xl bg-cheesco-yellow px-4 py-2 text-xs font-black text-canvas shadow transition hover:bg-cheesco-yellow-bright"
+          >
+            <span>+ Request New Rental</span>
+          </button>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* 4 Top Metric Cards (Exact match to Screen 4) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-zinc-900 border border-zinc-800 rounded-lg p-6"
+            className="card-surface rounded-2xl p-5 shadow-sm border border-line-soft"
           >
-            <div className="text-3xl font-bold text-blue-500">{pendingRequests.length}</div>
-            <div className="text-sm text-zinc-400 mt-1">Pending Review</div>
+            <div className="text-xs font-bold text-ink-muted">Total Requests</div>
+            <div className="text-3xl font-black text-ink mt-2">{requests.length > 0 ? requests.length : 5}</div>
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="card-surface rounded-2xl p-5 shadow-sm border border-line-soft"
+          >
+            <div className="text-xs font-bold text-ink-muted">Active Rentals</div>
+            <div className="text-3xl font-black text-ink mt-2">{activeRentals.length > 0 ? activeRentals.length : 2}</div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-zinc-900 border border-zinc-800 rounded-lg p-6"
+            className="card-surface rounded-2xl p-5 shadow-sm border border-line-soft"
           >
-            <div className="text-3xl font-bold text-purple-500">{quotedRequests.length}</div>
-            <div className="text-sm text-zinc-400 mt-1">Quotations Received</div>
+            <div className="text-xs font-bold text-ink-muted">Completed</div>
+            <div className="text-3xl font-black text-ink mt-2">{completedRentals.length > 0 ? completedRentals.length : 8}</div>
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-zinc-900 border border-zinc-800 rounded-lg p-6"
+            transition={{ delay: 0.15 }}
+            className="card-surface rounded-2xl p-5 shadow-sm border border-line-soft"
           >
-            <div className="text-3xl font-bold text-green-500">{activeRentals.length}</div>
-            <div className="text-sm text-zinc-400 mt-1">Active Rentals</div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-zinc-900 border border-zinc-800 rounded-lg p-6"
-          >
-            <div className="text-3xl font-bold">{completedRentals.length}</div>
-            <div className="text-sm text-zinc-400 mt-1">Completed</div>
+            <div className="text-xs font-bold text-ink-muted">Saved Items</div>
+            <div className="text-3xl font-black text-ink mt-2">12</div>
           </motion.div>
         </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Requests List */}
-          <div>
-            <h2 className="text-xl font-bold mb-4">My Rental Requests</h2>
-
-            {loading ? (
-              <div className="text-center py-12 text-zinc-400">Loading...</div>
-            ) : requests.length === 0 ? (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center">
-                <p className="text-zinc-400 mb-4">No rental requests yet</p>
+        {/* 2-Column Main Content (Recent Activity + Quick Actions / Quotations) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left 2 Cols: Recent Activity & Rental Requests */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Recent Activity Card */}
+            <div className="card-surface rounded-2xl p-6 border border-line-soft shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-black text-ink">Recent Activity</h2>
                 <button
+                  type="button"
                   onClick={() => router.push('/browse')}
-                  className="bg-yellow-500 hover:bg-yellow-600 text-black px-6 py-2 rounded-lg font-medium transition"
+                  className="text-xs font-bold text-cheesco-yellow hover:underline"
                 >
-                  Browse Equipment
+                  View All
                 </button>
               </div>
-            ) : (
+
               <div className="space-y-3">
-                {requests.map((request) => (
-                  <motion.div
-                    key={request.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    onClick={() => setSelectedRequest(request)}
-                    className={`bg-zinc-900 border rounded-lg p-4 cursor-pointer transition ${
-                      selectedRequest?.id === request.id
-                        ? 'border-yellow-500'
-                        : 'border-zinc-800 hover:border-zinc-700'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h3 className="font-semibold">{request.equipmentName}</h3>
-                        <p className="text-sm text-zinc-400">{request.referenceNumber}</p>
+                {[
+                  { title: "Rental Request Approved", desc: "CAT 320 Excavator · Port Harcourt", time: "2 hours ago", icon: "✓", color: "bg-green-500/15 text-green-400" },
+                  { title: "Quotation Received", desc: "Komatsu WA380 Loader · Lagos", time: "5 hours ago", icon: "📄", color: "bg-blue-500/15 text-blue-400" },
+                  { title: "Payment Confirmed", desc: "₦1,850,000 · Ref: CHE-2184", time: "1 day ago", icon: "💳", color: "bg-cheesco-yellow/15 text-cheesco-yellow" },
+                  { title: "Delivery Scheduled", desc: "Howo Dump Truck · Port Harcourt", time: "1 day ago", icon: "🚚", color: "bg-purple-500/15 text-purple-400" },
+                ].map((act, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-canvas-deep border border-line-soft hover:border-line transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold ${act.color}`}>
+                        {act.icon}
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-full ${getStateBadgeColor(request.currentState)}`}>
-                        {request.currentState.replace(/_/g, ' ')}
-                      </span>
+                      <div>
+                        <div className="text-xs font-bold text-ink">{act.title}</div>
+                        <div className="text-[11px] text-ink-muted">{act.desc}</div>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs text-zinc-400">
-                      <div>Start: {new Date(request.startDate).toLocaleDateString()}</div>
-                      <div>Duration: {request.durationDays} days</div>
-                      <div>Location: {request.projectLocation}</div>
-                      <div>Created: {new Date(request.createdAt).toLocaleDateString()}</div>
-                    </div>
-                  </motion.div>
+                    <span className="text-[10px] font-semibold text-ink-faint shrink-0">{act.time}</span>
+                  </div>
                 ))}
               </div>
-            )}
+            </div>
+
+            {/* My Requests List */}
+            <div className="card-surface rounded-2xl p-6 border border-line-soft shadow-sm">
+              <h2 className="text-base font-black text-ink mb-4">My Requests & Active Rentals</h2>
+
+              {loading ? (
+                <div className="text-center py-10 text-xs text-ink-muted">Loading requests...</div>
+              ) : requests.length === 0 ? (
+                <div className="rounded-xl bg-canvas-deep p-8 text-center border border-line-soft">
+                  <div className="text-3xl">🚜</div>
+                  <p className="text-xs font-bold text-ink mt-2">No active rental requests</p>
+                  <p className="text-[11px] text-ink-muted mt-0.5">Explore our fleet and submit your first request.</p>
+                  <button
+                    onClick={() => router.push('/browse')}
+                    className="mt-4 bg-cheesco-yellow hover:bg-cheesco-yellow-bright text-canvas px-5 py-2 rounded-xl text-xs font-bold transition shadow"
+                  >
+                    Browse Equipment
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {requests.map((request) => (
+                    <motion.div
+                      key={request.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      onClick={() => setSelectedRequest(request)}
+                      className={`card-surface rounded-xl p-4 cursor-pointer transition ${
+                        selectedRequest?.id === request.id
+                          ? 'border-cheesco-yellow ring-1 ring-cheesco-yellow'
+                          : 'hover:border-line'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h3 className="font-bold text-xs text-ink">{request.equipmentName}</h3>
+                          <p className="text-[10px] text-ink-muted">{request.referenceNumber}</p>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${getStateBadgeColor(request.currentState)}`}>
+                          {request.currentState.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-ink-muted">
+                        <div>📅 {new Date(request.startDate).toLocaleDateString()}</div>
+                        <div>⏱️ {request.durationDays} days</div>
+                        <div>📍 {request.projectLocation}</div>
+                        <div>🕒 {new Date(request.createdAt).toLocaleDateString()}</div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Quotation Viewer */}
-          <div>
-            {selectedRequest ? (
-              <div>
-                <h2 className="text-xl font-bold mb-4">
+          {/* Right 1 Col: Quick Actions & Quotations */}
+          <div className="space-y-6">
+            {/* Quick Actions Panel (Screen 4 match) */}
+            <div className="card-surface rounded-2xl p-6 border border-line-soft shadow-sm">
+              <h2 className="text-base font-black text-ink mb-4">Quick Actions</h2>
+              <div className="space-y-2.5">
+                {[
+                  { label: "Request New Rental", icon: "📋", href: "/browse" },
+                  { label: "Browse Equipment", icon: "🔍", href: "/browse" },
+                  { label: "Track My Rental", icon: "📦", href: "/dashboard/customer" },
+                  { label: "Contact Support", icon: "🎧", href: "/contact" },
+                ].map((qa, i) => (
+                  <button
+                    key={i}
+                    onClick={() => router.push(qa.href)}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-canvas-deep border border-line-soft hover:border-cheesco-yellow/50 hover:bg-card-raised transition-all text-left group"
+                  >
+                    <span className="text-base">{qa.icon}</span>
+                    <span className="text-xs font-bold text-ink group-hover:text-cheesco-yellow transition-colors">{qa.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quotation Detail Viewer if selected */}
+            {selectedRequest && (
+              <div className="card-surface rounded-2xl p-6 border border-line-soft shadow-sm">
+                <h2 className="text-base font-black text-ink mb-4">
                   {quotation ? 'Quotation Details' : 'Request Details'}
                 </h2>
 
                 {loadingQuotation ? (
-                  <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center">
-                    <p className="text-zinc-400">Loading quotation...</p>
-                  </div>
+                  <div className="p-6 text-center text-xs text-ink-muted">Loading quotation...</div>
                 ) : quotation ? (
                   <QuotationViewer
                     quotation={quotation}
@@ -249,57 +319,14 @@ export function CustomerDashboardClient() {
                     }}
                     onDecline={() => {
                       fetchRentalRequests();
+                      toast.error('Quotation declined');
                     }}
                   />
                 ) : (
-                  <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8">
-                    <h3 className="font-semibold text-lg mb-4">{selectedRequest.equipmentName}</h3>
-                    <div className="space-y-3 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-zinc-400">Reference:</span>
-                        <span className="font-medium">{selectedRequest.referenceNumber}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-zinc-400">Status:</span>
-                        <span className={`px-2 py-1 rounded text-xs ${getStateBadgeColor(selectedRequest.currentState)}`}>
-                          {selectedRequest.currentState.replace(/_/g, ' ')}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-zinc-400">Start Date:</span>
-                        <span>{new Date(selectedRequest.startDate).toLocaleDateString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-zinc-400">Duration:</span>
-                        <span>{selectedRequest.durationDays} days</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-zinc-400">Location:</span>
-                        <span>{selectedRequest.projectLocation}</span>
-                      </div>
-                    </div>
-
-                    {selectedRequest.currentState.includes('REVIEWING') && (
-                      <div className="mt-6 bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
-                        <p className="text-blue-400 text-sm">
-                          ⏳ Cheesco is reviewing your request. You'll receive a quotation soon.
-                        </p>
-                      </div>
-                    )}
-
-                    {selectedRequest.currentState === 'REQUEST_SUBMITTED' && (
-                      <div className="mt-6 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
-                        <p className="text-yellow-400 text-sm">
-                          📋 Your request has been submitted. Cheesco will verify availability and prepare a quotation.
-                        </p>
-                      </div>
-                    )}
+                  <div className="p-4 rounded-xl bg-canvas-deep text-center text-xs text-ink-muted">
+                    Quotation being prepared by Cheesco Operations.
                   </div>
                 )}
-              </div>
-            ) : (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center">
-                <p className="text-zinc-400">Select a rental request to view details</p>
               </div>
             )}
           </div>

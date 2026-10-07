@@ -71,10 +71,10 @@ export function CheescoLogo({ size = 40, className = "" }: LogoProps) {
   );
 }
 
-export function CheescoWordmark({ compact = false }: { compact?: boolean }) {
+export function CheescoWordmark({ compact = false, className = "" }: { compact?: boolean; className?: string }) {
   return (
-    <span className="flex flex-col leading-none select-none">
-      <span className="text-lg font-black tracking-[0.18em] text-ink">
+    <span className={`flex flex-col leading-none select-none ${className}`}>
+      <span className="text-lg font-black tracking-[0.18em] text-white">
         CHEESCO
       </span>
       {!compact && (
