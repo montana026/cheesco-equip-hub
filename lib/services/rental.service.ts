@@ -2,7 +2,6 @@ import { supabaseServer } from '@/lib/supabase/server';
 import type { RentalState } from '@/lib/types';
 import { notifyAdmins } from '@/lib/notifications';
 import { notificationService } from '@/lib/services/notification.service';
-import { EQUIPMENT } from '@/lib/seed';
 
 export interface CreateRentalRequestInput {
   customerId: string;
@@ -47,33 +46,8 @@ export const rentalService = {
       equipment = data;
     }
 
-    // 3. If input is a seed ID (e.g. 'eq-001') or name, match using the seed definition
-    if (!equipment) {
-      const seedItem = EQUIPMENT.find((e) => e.id === input.equipmentId || e.slug === input.equipmentId);
-      if (seedItem) {
-        const seedSlug = seedItem.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-        const { data } = await supabaseServer
-          .from('equipment')
-          .select('id, merchant_id')
-          .or(`slug.eq.${seedSlug},slug.eq.${seedItem.slug},name.ilike.%${seedItem.brand}%`)
-          .limit(1)
-          .maybeSingle();
-        equipment = data;
-      }
-    }
-
-    // 4. Safe fallback: guarantee actualEquipmentId is ALWAYS a real UUID from the equipment table
-    if (!equipment?.id || !isUuid(equipment.id)) {
-      const { data: fallbackEq } = await supabaseServer
-        .from('equipment')
-        .select('id, merchant_id')
-        .limit(1)
-        .maybeSingle();
-      equipment = fallbackEq;
-    }
-
     if (!equipment?.id) {
-      throw new Error('No equipment available in the database to fulfill the request.');
+      throw new Error('Equipment not found in database.');
     }
 
     const actualEquipmentId = equipment.id;

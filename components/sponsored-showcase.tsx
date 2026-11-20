@@ -161,13 +161,29 @@ export function SponsoredShowcase({ initialItems }: Props) {
         </div>
       </div>
 
-      <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {filteredItems.length === 0
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="card-surface animate-pulse rounded-2xl h-80" />
-            ))
-          : filteredItems.slice(0, 8).map((eq) => <EquipmentCard key={eq.id} eq={eq} />)}
-      </div>
+      {filteredItems.length === 0 ? (
+        <div className="mt-8 rounded-2xl border border-line-soft bg-card p-10 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-cheesco-yellow/10 text-cheesco-yellow">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+          </div>
+          <h3 className="mt-4 text-sm font-black text-ink">No Equipment Listed Yet</h3>
+          <p className="mt-1 text-xs text-ink-muted">New verified equipment will appear here as soon as merchants list them.</p>
+          <div className="mt-5">
+            <Link
+              href="/register?role=MERCHANT"
+              className="inline-flex items-center gap-2 rounded-xl bg-cheesco-yellow px-5 py-2.5 text-xs font-black text-[#0A0D14] hover:bg-cheesco-yellow-bright transition-all shadow-sm"
+            >
+              List Your Equipment →
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {filteredItems.slice(0, 8).map((eq) => <EquipmentCard key={eq.id} eq={eq} />)}
+        </div>
+      )}
     </section>
   );
 }

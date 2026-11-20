@@ -4,7 +4,6 @@ import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { BrowseClient } from "@/components/browse-client";
 import { equipmentService, normalizeEquipmentRow } from "@/lib/services/equipment.service";
-import { EQUIPMENT } from "@/lib/seed";
 import type { Equipment } from "@/lib/types";
 
 export const metadata: Metadata = {
@@ -27,7 +26,7 @@ async function getInitialEquipment(): Promise<Equipment[]> {
   } catch (err) {
     console.warn("Server browse error:", err);
   }
-  return EQUIPMENT;
+  return [];
 }
 
 export default async function BrowsePage() {

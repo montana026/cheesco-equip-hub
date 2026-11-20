@@ -1,6 +1,5 @@
 import { supabaseServer } from '@/lib/supabase/server';
 import { apiFetch } from '@/lib/api-client';
-import { EQUIPMENT } from '@/lib/seed';
 import type { Equipment, EquipmentCategory, ListingType } from '@/lib/types';
 
 export interface EquipmentFilters {
@@ -203,37 +202,8 @@ export const equipmentService = {
     } catch (err) {
       console.warn('Database equipment browse warning:', err);
     }
-    // Filter seed catalog to complement database items
-    let seedList = [...EQUIPMENT];
 
-    // Exclude any seed item currently leased or non-available
-    seedList = seedList.filter((e) => {
-      if (e.availabilityStatus === 'RENTED' || e.availabilityStatus === 'MAINTENANCE') return false;
-      if (leasedEquipmentIds.has(e.id) || leasedEquipmentIds.has(e.slug)) return false;
-      return true;
-    });
-
-    if (filters.category) {
-      seedList = seedList.filter((e) => e.category === filters.category);
-    }
-    if (filters.listingType) {
-      seedList = seedList.filter(
-        (e) => e.listingType === filters.listingType || e.listingType === 'FOR_SALE_AND_RENT'
-      );
-    }
-    if (filters.state) {
-      seedList = seedList.filter((e) => e.locationState.toLowerCase().includes(filters.state!.toLowerCase()));
-    }
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      seedList = seedList.filter(
-        (e) => e.name.toLowerCase().includes(q) || e.brand.toLowerCase().includes(q) || e.model.toLowerCase().includes(q)
-      );
-    }
-
-    // Merge: database listings first, then seed items (avoiding duplicates by slug)
-    const dbSlugs = new Set(dbItems.map((d) => d.slug));
-    const combined = [...dbItems, ...seedList.filter((s) => !dbSlugs.has(s.slug))];
+    const combined = [...dbItems];
 
     // Priority sorting: active promoted equipment appears at the top
     const now = new Date();
@@ -309,37 +279,7 @@ export const equipmentService = {
       console.warn('Database getBySlug warning:', err);
     }
 
-    const seed = EQUIPMENT.find((e) => e.slug === slug);
-    if (!seed) throw new Error('Equipment not found');
-
-    return {
-      id: seed.id,
-      slug: seed.slug,
-      merchant_id: seed.merchantId,
-      name: seed.name,
-      category: seed.category,
-      brand: seed.brand,
-      model: seed.model,
-      year: seed.year,
-      condition: seed.condition,
-      location_state: seed.locationState,
-      location_city: seed.locationCity,
-      operating_hours: seed.operatingHours,
-      description: seed.description,
-      specs: seed.specs,
-      listing_type: seed.listingType,
-      sale_price: seed.salePrice,
-      merchant_rental_rate: undefined,
-      cheesco_adjusted_rate: seed.cheescoAdjustedRate,
-      is_operator_included: seed.isOperatorIncluded,
-      is_delivery_available: seed.isDeliveryAvailable,
-      verification_status: seed.verificationStatus,
-      availability_status: seed.availabilityStatus,
-      is_featured: seed.isFeatured,
-      promotion_tier: seed.promotionTier,
-      merchant: { id: 'm-seed', business_name: seed.merchantName, verification_status: 'VERIFIED' },
-      images: seed.images.map((img, idx) => ({ image_url: img, is_primary: idx === 0, display_order: idx })),
-    };
+    throw new Error('Equipment not found');
   },
 
   /**
@@ -448,9 +388,7 @@ export const equipmentService = {
       console.warn('Database getEquipmentBySlug warning:', err);
     }
 
-    // Fall back to seed catalog
-    const seed = EQUIPMENT.find((e) => e.slug === slug || e.id === slug);
-    return seed || null;
+    return null;
   },
 
   /**
@@ -511,42 +449,7 @@ export const equipmentService = {
       console.warn('Database getFeatured warning:', err);
     }
 
-    return EQUIPMENT.filter(
-      (e) =>
-        e.isFeatured &&
-        e.availabilityStatus === 'AVAILABLE' &&
-        !leasedEquipmentIds.has(e.id) &&
-        !leasedEquipmentIds.has(e.slug)
-    )
-      .slice(0, limit)
-      .map((e) => ({
-        id: e.id,
-        slug: e.slug,
-        merchant_id: e.merchantId,
-        name: e.name,
-        category: e.category,
-        brand: e.brand,
-        model: e.model,
-        year: e.year,
-        condition: e.condition,
-        location_state: e.locationState,
-        location_city: e.locationCity,
-        operating_hours: e.operatingHours,
-        description: e.description,
-        specs: e.specs,
-        listing_type: e.listingType,
-        sale_price: e.salePrice,
-        merchant_rental_rate: undefined,
-        cheesco_adjusted_rate: e.cheescoAdjustedRate,
-        is_operator_included: e.isOperatorIncluded,
-        is_delivery_available: e.isDeliveryAvailable,
-        verification_status: e.verificationStatus,
-        availability_status: e.availabilityStatus,
-        is_featured: e.isFeatured,
-        promotion_tier: e.promotionTier,
-        merchant: { business_name: e.merchantName, verification_status: 'VERIFIED' },
-        images: e.images.map((img, idx) => ({ image_url: img, is_primary: idx === 0, display_order: idx })),
-      }));
+    return [];
   },
 
   /**
