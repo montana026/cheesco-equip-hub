@@ -106,21 +106,7 @@ export async function checkRateLimit(
     process.env.UPSTASH_REDIS_REST_TOKEN
   );
 
-  // 1. Real deployment without Upstash
-  if (realProd && !hasUpstash) {
-    if (options.failClosed) {
-      console.error(
-        `[rate-limit] UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN not set in production. Critical route "${identifier}" failing closed.`
-      );
-      return { allowed: false, remaining: 0, resetMs: windowMs };
-    }
-    console.warn(
-      `[rate-limit] Upstash not configured in production. Route "${identifier}" failing open.`
-    );
-    return { allowed: true, remaining: limit, resetMs: windowMs };
-  }
-
-  // 2. Upstash not configured (local dev / local npm start) → in-memory
+  // 1. Upstash not configured → fall back to in-memory sliding window
   if (!hasUpstash) {
     return checkRateLimitInMemory(identifier, limit, windowMs);
   }
