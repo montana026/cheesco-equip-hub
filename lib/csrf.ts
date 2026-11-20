@@ -20,7 +20,7 @@ export function isSameOrigin(request: Request | { headers: { get(name: string): 
   // No Origin header → same-origin fetch or non-browser client; allow
   if (!origin) return true;
 
-  // Localhost origins are strictly forbidden in real production deployments
+  // Localhost origins are allowed when NOT a real production deployment
   if (!isRealProduction()) {
     if (
       origin.startsWith('http://localhost') ||
@@ -30,27 +30,55 @@ export function isSameOrigin(request: Request | { headers: { get(name: string): 
     }
   }
 
-  // Determine the app's canonical origin and compare both www and non-www forms
+  let originHost = '';
+  try {
+    const originUrl = new URL(origin);
+    originHost = originUrl.host.replace(/^www\./i, '').toLowerCase();
+  } catch {
+    return false;
+  }
+
+  // 1. Direct match with request's incoming Host / X-Forwarded-Host header
+  // (This handles any Vercel preview domain, staging, or production domain automatically)
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  if (host) {
+    const reqHost = host.split(',')[0].trim().replace(/^www\./i, '').toLowerCase();
+    if (originHost === reqHost) {
+      return true;
+    }
+  }
+
+  // 2. Match configured NEXT_PUBLIC_APP_URL
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
   if (appUrl) {
-    if (origin === appUrl) return true;
-
     try {
-      const originUrl = new URL(origin);
       const targetUrl = new URL(appUrl);
-      const originHost = originUrl.host.replace(/^www\./i, '').toLowerCase();
       const targetHost = targetUrl.host.replace(/^www\./i, '').toLowerCase();
-
-      if (
-        originUrl.protocol === targetUrl.protocol &&
-        originHost === targetHost &&
-        originUrl.port === targetUrl.port
-      ) {
+      if (originHost === targetHost) {
         return true;
       }
     } catch {
       // Invalid URL format
     }
+  }
+
+  // 3. Match Vercel's automatic deployment URL
+  const vercelUrl = process.env.VERCEL_URL;
+  if (vercelUrl) {
+    const vercelHost = vercelUrl.replace(/^https?:\/\//, '').replace(/^www\./i, '').toLowerCase();
+    if (originHost === vercelHost) {
+      return true;
+    }
+  }
+
+  // 4. Match official Cheesco & Vercel deployment domains
+  if (
+    originHost === 'cheescoequiphub.com' ||
+    originHost === 'cheesco.com' ||
+    originHost.endsWith('.cheescoequiphub.com') ||
+    originHost.endsWith('.vercel.app')
+  ) {
+    return true;
   }
 
   return false;
