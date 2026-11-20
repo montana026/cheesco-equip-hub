@@ -1,6 +1,6 @@
-import { supabase } from '@/lib/supabase/client';
-import { supabaseServer } from '@/lib/supabase/server';
+import { createAuthClient, supabaseServer } from '@/lib/supabase/server';
 import type { UserRole } from '@/lib/types';
+import type { NextRequest } from 'next/server';
 
 export interface SignUpInput {
   email: string;
@@ -21,11 +21,25 @@ export const authService = {
    * Sign up new user
    */
   async signUp(input: SignUpInput) {
-    // Create auth user
+    // Determine application base URL for email verification callback
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+    const emailRedirectTo = `${appUrl}/auth/callback?next=/login?verified=true`;
+
+    const signUpOptions = {
+      emailRedirectTo,
+      data: {
+        full_name: input.fullName,
+        role: input.role,
+      },
+    };
+
+    // Create auth user via stateless createAuthClient()
     let authData;
-    const { data, error: authError } = await supabase.auth.signUp({
+    const authClient = createAuthClient();
+    const { data, error: authError } = await authClient.auth.signUp({
       email: input.email,
       password: input.password,
+      options: signUpOptions,
     });
 
     if (authError) {
@@ -46,9 +60,10 @@ export const authService = {
           if (!existingProfile) {
             // Orphaned auth user from a previously failed profile creation — clean up and retry
             await supabaseServer.auth.admin.deleteUser(existingAuthUser.id);
-            const retry = await supabase.auth.signUp({
+            const retry = await createAuthClient().auth.signUp({
               email: input.email,
               password: input.password,
+              options: signUpOptions,
             });
             if (retry.error) throw retry.error;
             authData = retry.data;
@@ -83,9 +98,10 @@ export const authService = {
 
         if (!existingProfile) {
           await supabaseServer.auth.admin.deleteUser(existingAuthUser.id);
-          const retry = await supabase.auth.signUp({
+          const retry = await createAuthClient().auth.signUp({
             email: input.email,
             password: input.password,
+            options: signUpOptions,
           });
           if (retry.error) throw retry.error;
           authData = retry.data;
@@ -97,16 +113,28 @@ export const authService = {
 
     if (!authData?.user) throw new Error('Failed to create user');
 
+    // Privilege escalation prevention: public signups are strictly CUSTOMER or MERCHANT
+    const safeRole: UserRole = input.role === 'MERCHANT' ? 'MERCHANT' : 'CUSTOMER';
+
     // Create user profile using supabaseServer (service role key bypasses RLS)
     const { error: profileError } = await supabaseServer.from('users').upsert({
       id: authData.user.id,
       email: input.email,
       full_name: input.fullName,
       phone: input.phone,
-      role: input.role,
+      role: safeRole,
     });
 
     if (profileError) throw profileError;
+
+    // Sync role to app_metadata so Supabase Auth and JWT reflect the authoritative role
+    try {
+      await supabaseServer.auth.admin.updateUserById(authData.user.id, {
+        app_metadata: { role: safeRole },
+      });
+    } catch (metaErr) {
+      console.warn('[authService.signUp] Could not update app_metadata:', metaErr);
+    }
 
     // If merchant, create merchant profile using supabaseServer
     if (input.role === 'MERCHANT' && input.businessName) {
@@ -130,7 +158,7 @@ export const authService = {
    * Sign in user
    */
   async signIn(input: SignInInput) {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await createAuthClient().auth.signInWithPassword({
       email: input.email,
       password: input.password,
     });
@@ -140,18 +168,23 @@ export const authService = {
   },
 
   /**
-   * Sign out
+   * Sign out: invalidates the user's session token via admin API without affecting server state
    */
-  async signOut() {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+  async signOut(accessToken?: string) {
+    if (accessToken) {
+      try {
+        await supabaseServer.auth.admin.signOut(accessToken, 'local');
+      } catch (err) {
+        console.warn('[authService.signOut] admin signOut warning:', err);
+      }
+    }
   },
 
   /**
    * Get current session
    */
   async getSession() {
-    const { data, error } = await supabase.auth.getSession();
+    const { data, error } = await createAuthClient().auth.getSession();
     if (error) throw error;
     return data.session;
   },
@@ -177,11 +210,80 @@ export const authService = {
   },
 
   /**
+   * Get user from NextRequest (Authorization header or cookie) or active session
+   */
+  async getUserFromRequest(request?: NextRequest) {
+    let token: string | null = null;
+
+    if (request) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        token = authHeader.substring(7).trim();
+      }
+      if (!token) {
+        token =
+          request.cookies.get('sb-access-token')?.value ||
+          request.cookies.get('auth_token')?.value ||
+          null;
+      }
+    }
+
+    let authUser: any = null;
+
+    if (token) {
+      const {
+        data: { user },
+        error: authErr,
+      } = await supabaseServer.auth.getUser(token);
+
+      if (user && !authErr) {
+        authUser = user;
+      }
+    }
+
+    if (authUser) {
+      const { data: userProfile } = await supabaseServer
+        .from('users')
+        .select('*')
+        .eq('id', authUser.id)
+        .maybeSingle();
+
+      const { data: merchantProfiles } = await supabaseServer
+        .from('merchant_profiles')
+        .select('*')
+        .eq('user_id', authUser.id);
+
+      if (userProfile) {
+        return {
+          ...userProfile,
+          merchant_profile: merchantProfiles || [],
+        };
+      }
+
+      // Role MUST come only from users table or app_metadata, NEVER user_metadata
+      return {
+        id: authUser.id,
+        email: authUser.email,
+        role: (authUser.app_metadata?.role as UserRole) || 'CUSTOMER',
+        full_name: authUser.user_metadata?.full_name || authUser.email,
+        merchant_profile: merchantProfiles || [],
+      };
+    }
+
+    try {
+      return await this.getCurrentUser();
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * Request password reset
    */
   async requestPasswordReset(email: string) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password`,
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+    const { error } = await createAuthClient().auth.resetPasswordForEmail(email, {
+      redirectTo: `${appUrl}/reset-password`,
     });
 
     if (error) throw error;
@@ -191,7 +293,7 @@ export const authService = {
    * Update password
    */
   async updatePassword(newPassword: string) {
-    const { error } = await supabase.auth.updateUser({
+    const { error } = await createAuthClient().auth.updateUser({
       password: newPassword,
     });
 
@@ -199,16 +301,29 @@ export const authService = {
   },
 
   /**
-   * Update user profile
+   * Update user profile - strictly allowlist only safe fields: ['full_name', 'phone', 'avatar_url']
    */
   async updateProfile(userId: string, updates: Partial<{
     full_name: string;
     phone: string;
     avatar_url: string;
   }>) {
+    const ALLOWED_FIELDS = ['full_name', 'phone', 'avatar_url'] as const;
+    const safeUpdates: Record<string, any> = {};
+
+    for (const key of ALLOWED_FIELDS) {
+      if (key in updates && updates[key] !== undefined) {
+        safeUpdates[key] = updates[key];
+      }
+    }
+
+    if (Object.keys(safeUpdates).length === 0) {
+      throw new Error('No valid profile fields provided for update');
+    }
+
     const { data, error } = await supabaseServer
       .from('users')
-      .update(updates)
+      .update(safeUpdates)
       .eq('id', userId)
       .select()
       .single();

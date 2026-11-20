@@ -1,70 +1,124 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { paymentService } from '@/lib/services/payment.service';
-import { supabase } from '@/lib/supabase/client';
+import { paymentService, PaymentProvider } from '@/lib/services/payment.service';
+import { verifyCustomerAuth } from '@/lib/admin-auth';
+import { supabaseServer } from '@/lib/supabase/server';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { quotationId, email, name } = body;
+    const quotationId = body.quotation_id || body.quotationId;
+    const provider: PaymentProvider = body.provider || 'paystack';
+    const email = body.email;
+    const name = body.name;
 
-    // Verify user is authenticated
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!quotationId) {
+      return NextResponse.json({ error: 'Missing quotation_id' }, { status: 400 });
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user } } = await supabase.auth.getUser(token);
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!['paystack', 'flutterwave', 'bank_transfer'].includes(provider)) {
+      return NextResponse.json(
+        { error: 'Invalid provider. Must be paystack, flutterwave, or bank_transfer' },
+        { status: 400 }
+      );
     }
 
-    // Get quotation details
-    const { data: quotation, error: quotationError } = await supabase
+    // Authenticate user
+    const auth = await verifyCustomerAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json(
+        { error: auth.error || 'Unauthorized' },
+        { status: auth.status || 401 }
+      );
+    }
+
+    // Rate limiting (max 15 checkout initializations per minute per user/IP; fail closed on Redis errors)
+    const clientKey = `pay_init:${auth.userId || getClientIp(request)}`;
+    const rateLimit = await checkRateLimit(clientKey, 15, 60_000, { failClosed: true });
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many payment requests. Please wait a minute before retrying.' },
+        { status: 429 }
+      );
+    }
+
+    // Fetch quotation to verify ownership
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(quotationId);
+    let quotationQuery = supabaseServer
       .from('quotations')
-      .select('*, rental_requests(id, customer_id)')
-      .eq('id', quotationId)
-      .single();
+      .select('*, rental_requests(id, customer_id)');
+
+    if (isUuid) {
+      quotationQuery = quotationQuery.eq('id', quotationId);
+    } else {
+      quotationQuery = quotationQuery.eq('reference_number', quotationId);
+    }
+
+    const { data: quotation, error: quotationError } = await quotationQuery.maybeSingle();
 
     if (quotationError || !quotation) {
+      console.error('Quotation not found in /api/payments/initialize:', quotationError, { quotationId });
       return NextResponse.json({ error: 'Quotation not found' }, { status: 404 });
     }
 
-    // Verify quotation belongs to this user
-    if (quotation.rental_requests.customer_id !== user.id) {
+    const reqObj = Array.isArray(quotation.rental_requests)
+      ? quotation.rental_requests[0]
+      : quotation.rental_requests;
+    const requestCustomerId = reqObj?.customer_id;
+
+    // Fetch user details for customer
+    let customerFullName = '';
+    let customerUserEmail = '';
+    if (requestCustomerId) {
+      const { data: userProfile } = await supabaseServer
+        .from('users')
+        .select('full_name, email, phone')
+        .eq('id', requestCustomerId)
+        .maybeSingle();
+      if (userProfile) {
+        customerFullName = userProfile.full_name || '';
+        customerUserEmail = userProfile.email || '';
+      }
+    }
+
+    const isOwner = !requestCustomerId || requestCustomerId === auth.userId || (customerUserEmail && auth.email === customerUserEmail);
+    const isAdmin = ['SUPER_ADMIN', 'OPERATIONS_ADMIN', 'FINANCE_ADMIN', 'ADMIN'].includes(auth.role || '');
+    if (!isOwner && !isAdmin) {
       return NextResponse.json({ error: 'Forbidden: Not your quotation' }, { status: 403 });
     }
 
-    // Verify quotation is accepted
-    if (quotation.status !== 'ACCEPTED') {
-      return NextResponse.json({ error: 'Quotation must be accepted first' }, { status: 400 });
-    }
-
-    // Initialize payment
-    const payment = await paymentService.initializePayment({
-      rentalRequestId: quotation.rental_request_id,
-      amount: quotation.total_amount,
-      email: email || user.email,
-      customerName: name,
-      metadata: {
-        quotation_id: quotationId,
-        rental_request_id: quotation.rental_request_id,
-      },
+    // Call payment service (which securely loads amount from DB, creates reference and pending payment)
+    const result = await paymentService.initializePayment({
+      quotationId: quotation.id,
+      provider,
+      payerId: auth.userId || requestCustomerId,
+      email: email || auth.email || customerUserEmail,
+      customerName: name || customerFullName,
     });
 
     // Update rental state to PAYMENT_PENDING
-    await supabase
-      .from('rental_requests')
-      .update({ current_state: 'PAYMENT_PENDING' })
-      .eq('id', quotation.rental_request_id);
+    if (quotation.rental_request_id) {
+      await supabaseServer
+        .from('rental_requests')
+        .update({ current_state: 'PAYMENT_PENDING' })
+        .eq('id', quotation.rental_request_id);
+    }
 
-    return NextResponse.json({ success: true, data: payment });
+    return NextResponse.json({
+      success: true,
+      data: result,
+      checkout_url: result.checkout_url,
+      reference: result.reference,
+    });
   } catch (error: any) {
-    console.error('Error initializing payment:', error);
+    console.error('[/api/payments/initialize] Error initializing payment:', error);
+    const isTimeout = error?.name === 'AbortError' || error?.message?.includes('aborted');
     return NextResponse.json(
-      { error: error.message || 'Failed to initialize payment' },
-      { status: 500 }
+      { error: isTimeout
+          ? 'Flutterwave is taking too long to respond. Please try again or use Paystack / Bank Transfer.'
+          : 'An internal error occurred. Please try again.'
+      },
+      { status: isTimeout ? 504 : 500 }
     );
   }
 }

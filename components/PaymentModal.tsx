@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { apiFetch } from '@/lib/api-client';
 
 interface PaymentModalProps {
   quotation: {
@@ -59,14 +60,11 @@ export default function PaymentModal({
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('auth_token');
-
       // Initialize payment
-      const response = await fetch('/api/payments/initialize', {
+      const response = await apiFetch('/api/payments/initialize', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           quotationId: quotation.id,
@@ -95,11 +93,7 @@ export default function PaymentModal({
         },
         callback: async function (response: any) {
           // Verify payment
-          const verifyResponse = await fetch(`/api/payments/verify?reference=${reference}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          const verifyResponse = await apiFetch(`/api/payments/verify?reference=${reference}`);
 
           const verifyResult = await verifyResponse.json();
 

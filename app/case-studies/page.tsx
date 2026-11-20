@@ -168,22 +168,22 @@ export default function CaseStudiesPage() {
         {/* ── Bottom CTA ───────────────────────────────────────────── */}
         <section className="bg-cheesco-yellow px-4 py-20 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-black text-canvas sm:text-4xl">
+            <h2 className="text-3xl font-black text-[#0A0D14] sm:text-4xl">
               Ready to write your own story?
             </h2>
-            <p className="mt-4 text-canvas/80">
+            <p className="mt-4 text-[#0A0D14]/80 font-medium">
               Join Nigeria's most trusted equipment marketplace today.
             </p>
             <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
               <Link
                 href="/browse"
-                className="rounded-lg bg-canvas px-8 py-3 font-bold text-cheesco-yellow transition hover:bg-canvas/90"
+                className="rounded-lg bg-[#0A0D14] px-8 py-3 font-bold text-cheesco-yellow transition hover:bg-[#1A2130]"
               >
                 Browse Equipment
               </Link>
               <Link
                 href="/register"
-                className="rounded-lg border-2 border-canvas px-8 py-3 font-bold text-canvas transition hover:bg-canvas/10"
+                className="rounded-lg border-2 border-[#0A0D14] px-8 py-3 font-bold text-[#0A0D14] transition hover:bg-[#0A0D14]/10"
               >
                 List Your Equipment
               </Link>

@@ -1,47 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { supabaseServer } from '@/lib/supabase/server';
+import { notificationService } from '@/lib/services/notification.service';
+import { verifyAdminAuth } from '@/lib/admin-auth';
+// NOTE: notificationService.send() already persists an IN_APP row + sends email.
+// Do NOT also call notifyUser() from lib/notifications — that would double-write.
 
 export async function POST(
   request: NextRequest,
-  ctx: RouteContext<'/api/admin/equipment/[id]/reject'>
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: equipmentId } = await ctx.params;
-    const body = await request.json();
-
-    // Verify authentication
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    let reason = 'Incomplete documentation or specifications';
+    try {
+      const body = await request.json();
+      if (body?.reason) reason = body.reason;
+    } catch {
+      // noop
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user } } = await supabase.auth.getUser(token);
+    // Verify admin authentication
+    const auth = await verifyAdminAuth(request, [
+      'VERIFICATION_ADMIN',
+      'OPERATIONS_ADMIN',
+      'SUPER_ADMIN',
+    ]);
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Verify user has verification admin role
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!userData || !['VERIFICATION_ADMIN', 'SUPER_ADMIN'].includes(userData.role)) {
+    if (!auth.authorized) {
       return NextResponse.json(
-        { error: 'Forbidden: Verification admin access required' },
-        { status: 403 }
+        { error: auth.error || 'Forbidden: Admin access required' },
+        { status: auth.status || 403 }
       );
     }
 
+    // Fetch existing equipment specs
+    const { data: existing } = await supabaseServer
+      .from('equipment')
+      .select('specs')
+      .eq('id', equipmentId)
+      .maybeSingle();
+
+    const updatedSpecs = {
+      ...(existing?.specs || {}),
+      admin_feedback: {
+        status: 'REJECTED',
+        notes: reason,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
     // Update equipment to rejected
-    const { data: equipment, error: updateError } = await supabase
+    const { data: equipment, error: updateError } = await supabaseServer
       .from('equipment')
       .update({
         verification_status: 'REJECTED',
         availability_status: 'UNAVAILABLE',
+        specs: updatedSpecs,
         updated_at: new Date().toISOString(),
       })
       .eq('id', equipmentId)
@@ -50,10 +64,35 @@ export async function POST(
 
     if (updateError) {
       console.error('Error rejecting equipment:', updateError);
-      throw new Error('Failed to reject equipment');
+      throw new Error('Failed to reject equipment: ' + updateError.message);
     }
 
-    // TODO: Send notification to merchant with rejection reason
+    // Send notification to merchant with rejection reason
+    try {
+      if (equipment?.merchant_id) {
+        const { data: merchantProfile } = await supabaseServer
+          .from('merchant_profiles')
+          .select('id, user_id, business_name')
+          .eq('id', equipment.merchant_id)
+          .maybeSingle();
+
+        if (merchantProfile?.user_id) {
+          await notificationService.send({
+            userId: merchantProfile.user_id,
+            title: 'Equipment Listing Rejected',
+            message: `Your equipment listing "${equipment.name}" was not approved. Reason: ${reason}`,
+            type: 'WARNING',
+            category: 'EQUIPMENT',
+            actionUrl: '/merchant/listings',
+            channels: ['IN_APP', 'EMAIL'],
+          });
+
+          // notificationService.send() above already handled IN_APP + email
+        }
+      }
+    } catch (notifErr) {
+      console.error('Failed to notify merchant of rejection:', notifErr);
+    }
 
     return NextResponse.json({
       success: true,
@@ -61,9 +100,9 @@ export async function POST(
       message: 'Equipment rejected',
     });
   } catch (error: any) {
-    console.error('Error in reject route:', error);
+    console.error('[/api/admin/equipment/[id]/reject] Error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to reject equipment' },
+      { error: 'An internal error occurred. Please try again.' },
       { status: 500 }
     );
   }

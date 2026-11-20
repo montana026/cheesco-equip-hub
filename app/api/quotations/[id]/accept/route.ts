@@ -1,50 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { quotationService } from '@/lib/services/quotation.service';
-import { supabase } from '@/lib/supabase/client';
+import { verifyCustomerAuth } from '@/lib/admin-auth';
+import { supabaseServer } from '@/lib/supabase/server';
 
 export async function POST(
   request: NextRequest,
-  ctx: RouteContext<'/api/quotations/[id]/accept'>
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: quotationId } = await ctx.params;
 
-    // Verify user is authenticated customer
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Verify user is authenticated via verifyCustomerAuth
+    const auth = await verifyCustomerAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json(
+        { error: auth.error || 'Unauthorized' },
+        { status: auth.status || 401 }
+      );
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user } } = await supabase.auth.getUser(token);
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Verify quotation belongs to this customer's rental request
-    const { data: quotation } = await supabase
+    // Verify quotation exists and belongs to this customer's rental request
+    const { data: quotation } = await supabaseServer
       .from('quotations')
       .select('rental_request_id')
       .eq('id', quotationId)
-      .single();
+      .maybeSingle();
 
     if (!quotation) {
       return NextResponse.json({ error: 'Quotation not found' }, { status: 404 });
     }
 
-    const { data: rental } = await supabase
+    const { data: rental } = await supabaseServer
       .from('rental_requests')
       .select('customer_id')
       .eq('id', quotation.rental_request_id)
-      .single();
+      .maybeSingle();
 
-    if (!rental || rental.customer_id !== user.id) {
-      return NextResponse.json({ error: 'Forbidden: Not your quotation' }, { status: 403 });
+    if (!rental || rental.customer_id !== auth.userId) {
+      return NextResponse.json(
+        { error: 'Forbidden: Not your quotation' },
+        { status: 403 }
+      );
     }
 
     // Accept quotation
-    const acceptedQuotation = await quotationService.accept(quotationId, user.id);
+    const acceptedQuotation = await quotationService.accept(quotationId, auth.userId);
 
     return NextResponse.json({ success: true, data: acceptedQuotation });
   } catch (error) {

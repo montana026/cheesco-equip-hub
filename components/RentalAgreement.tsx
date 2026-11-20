@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { fmtNgnFull } from '@/lib/format';
+import { apiFetch } from '@/lib/api-client';
 
 interface RentalAgreementProps {
   rentalRequest: {
@@ -79,12 +80,10 @@ export default function RentalAgreement({
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch('/api/agreements/sign', {
+      const response = await apiFetch('/api/agreements/sign', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           rentalRequestId: rentalRequest.id,
@@ -254,19 +253,19 @@ export default function RentalAgreement({
           <h2 className="text-xl font-black mb-4 text-yellow-600">TERMS & CONDITIONS</h2>
           <div className="border border-gray-300 rounded-lg p-4 bg-gray-50 text-sm space-y-3">
             <div>
-              <div className="font-bold mb-1">1. PAYMENT TERMS</div>
+              <div className="font-bold mb-1">1. PAYMENT TERMS &amp; VAT</div>
               <p className="text-gray-700">
-                Full rental payment and damage deposit must be paid before equipment delivery.
+                Full rental payment including statutory VAT (7.5%) must be paid before equipment mobilization.
                 Payments are processed securely through Cheesco Equip Hub.
               </p>
             </div>
 
             <div>
-              <div className="font-bold mb-1">2. DAMAGE DEPOSIT</div>
+              <div className="font-bold mb-1">2. SECURITY DEPOSIT</div>
               <p className="text-gray-700">
-                A damage deposit of ₦{fmtNgnFull(quotation.depositAmount)} is required. This
-                deposit will be refunded within 7 business days after rental completion,
-                less any deductions for damage or loss as determined by post-rental inspection.
+                {quotation.depositAmount > 0
+                  ? `A caution deposit of ₦${fmtNgnFull(quotation.depositAmount)} is required and will be refunded upon inspection.`
+                  : "Security caution deposit is waived for this verified rental contract. Routine servicing and scheduled maintenance are handled by Cheesco."}
               </p>
             </div>
 
@@ -293,16 +292,12 @@ export default function RentalAgreement({
               </p>
             </div>
 
-            {rentalRequest.operatorRequired && (
-              <div>
-                <div className="font-bold mb-1">5. OPERATOR</div>
-                <p className="text-gray-700">
-                  A qualified operator has been assigned to this rental. The operator's costs are
-                  included in the rental fee. The Renter must provide safe working conditions and
-                  clear instructions for equipment operation.
-                </p>
-              </div>
-            )}
+            <div>
+              <div className="font-bold mb-1">5. OPERATOR, FUELING &amp; SITE RESPONSIBILITIES</div>
+              <p className="text-gray-700 font-medium">
+                Operator feeding and accommodation / fueling of the equipment and community charges are the client&apos;s responsibility.
+              </p>
+            </div>
 
             <div>
               <div className="font-bold mb-1">{rentalRequest.operatorRequired ? '6' : '5'}. LIABILITY & INSURANCE</div>

@@ -3,9 +3,9 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { CATEGORY_META, NIGERIAN_STATES } from "@/lib/seed";
+import { CATEGORY_META, NIGERIAN_STATES } from "@/lib/seed-ui";
 import type { Equipment, EquipmentCategory } from "@/lib/types";
-import { EquipmentCard } from "./sections";
+import { EquipmentCard } from "./sponsored-showcase";
 
 const CATEGORIES = Object.keys(CATEGORY_META) as EquipmentCategory[];
 const BRANDS = ["Caterpillar", "Komatsu", "Liebherr", "Perkins", "Volvo CE", "Sinotruk", "Bomag", "XCMG", "Toyota", "Manitowoc", "Goldhofer"];
@@ -57,6 +57,15 @@ export function BrowseClient({ initialEquipment }: BrowseClientProps) {
     }
   }, []);
 
+  useEffect(() => {
+    fetchEquipment({
+      q: sp.get("q") ?? undefined,
+      category: sp.get("category") ?? undefined,
+      listing: sp.get("listing") ?? undefined,
+      state: sp.get("state") ?? undefined,
+    });
+  }, [fetchEquipment, sp]);
+
   const handleCategoryToggle = (cat: string) => {
     const next = selectedCategories.includes(cat)
       ? selectedCategories.filter((c) => c !== cat)
@@ -87,6 +96,11 @@ export function BrowseClient({ initialEquipment }: BrowseClientProps) {
   // Client-side filtering and sorting
   const filteredAndSorted = useMemo(() => {
     let list = equipment.filter((eq) => {
+      // Exclude leased/rented equipment from the platform until lease completion
+      if (eq.availabilityStatus === 'RENTED' || eq.availabilityStatus === 'MAINTENANCE') {
+        return false;
+      }
+
       // Category filter
       if (selectedCategories.length > 0 && !selectedCategories.includes(eq.category)) {
         return false;
@@ -114,9 +128,9 @@ export function BrowseClient({ initialEquipment }: BrowseClientProps) {
 
     // Sorting
     if (sortBy === "price_asc") {
-      list.sort((a, b) => (a.cheescoAdjustedRate ?? a.merchantRentalRate) - (b.cheescoAdjustedRate ?? b.merchantRentalRate));
+      list.sort((a, b) => (a.cheescoAdjustedRate ?? a.merchantRentalRate ?? 0) - (b.cheescoAdjustedRate ?? b.merchantRentalRate ?? 0));
     } else if (sortBy === "price_desc") {
-      list.sort((a, b) => (b.cheescoAdjustedRate ?? b.merchantRentalRate) - (a.cheescoAdjustedRate ?? a.merchantRentalRate));
+      list.sort((a, b) => (b.cheescoAdjustedRate ?? b.merchantRentalRate ?? 0) - (a.cheescoAdjustedRate ?? a.merchantRentalRate ?? 0));
     } else if (sortBy === "hours_asc") {
       list.sort((a, b) => (a.operatingHours || 0) - (b.operatingHours || 0));
     } else {
@@ -376,7 +390,7 @@ export function BrowseClient({ initialEquipment }: BrowseClientProps) {
               <button
                 type="button"
                 onClick={clearAll}
-                className="mt-5 rounded-xl bg-cheesco-yellow px-5 py-2 text-xs font-bold text-canvas transition-all hover:bg-cheesco-yellow-bright"
+                className="mt-5 rounded-xl bg-cheesco-yellow px-5 py-2 text-xs font-bold text-[#0A0D14] transition-all hover:bg-cheesco-yellow-bright"
               >
                 Reset Filters
               </button>

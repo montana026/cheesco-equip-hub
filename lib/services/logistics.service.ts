@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase/client';
+import { supabaseServer as supabase } from '@/lib/supabase/server';
 
 export interface AssignLogisticsInput {
   rentalRequestId: string;
@@ -65,7 +65,8 @@ export const logisticsService = {
         type: 'LOGISTICS',
         title: 'Logistics Assigned',
         message: `Carrier assigned for ${rental.reference_number}. Equipment will be delivered soon.`,
-        link: `/dashboard/customer/requests/${input.rentalRequestId}`,
+        link: `/dashboard/customer?requestId=${input.rentalRequestId}`,
+        is_read: false,
       });
     }
 
@@ -132,7 +133,8 @@ export const logisticsService = {
           type: 'LOGISTICS',
           title: notif.title,
           message: notif.message,
-          link: `/dashboard/customer/requests/${logistics.rental_request_id}`,
+          link: `/dashboard/customer?requestId=${logistics.rental_request_id}`,
+          is_read: false,
         });
       }
     }
@@ -177,27 +179,55 @@ export const logisticsService = {
 
   /**
    * Confirm delivery
+   * Atomic conditional UPDATE on logistics WHERE id=$1 AND status IN ('ASSIGNED', 'DISPATCHED', 'IN_TRANSIT', 'ARRIVED') ... RETURNING *
+   * Triggers rental state change and escrow progression at most once.
    */
   async confirmDelivery(logisticsId: string, confirmedBy: string, notes?: string) {
-    const { data: logistics, error } = await supabase
+    const nowIso = new Date().toISOString();
+
+    const { data: updatedRows, error } = await supabase
       .from('logistics')
       .update({
         status: 'DELIVERED',
-        actual_delivery_date: new Date().toISOString(),
+        actual_delivery_date: nowIso,
         delivery_confirmed_by: confirmedBy,
         notes: notes || '',
+        updated_at: nowIso,
       })
       .eq('id', logisticsId)
-      .select('rental_request_id')
-      .single();
+      .in('status', ['ASSIGNED', 'DISPATCHED', 'IN_TRANSIT', 'ARRIVED'])
+      .select('*');
 
     if (error) throw error;
 
-    // Update rental state to DELIVERED
-    await supabase
-      .from('rental_requests')
-      .update({ current_state: 'DELIVERED' })
-      .eq('id', logistics.rental_request_id);
+    if (!updatedRows || updatedRows.length === 0) {
+      const { data: existing, error: fetchErr } = await supabase
+        .from('logistics')
+        .select('*')
+        .eq('id', logisticsId)
+        .single();
+
+      if (fetchErr || !existing) throw new Error('Logistics record not found');
+
+      if (existing.status === 'DELIVERED') {
+        // Already DELIVERED — idempotent, do not re-run side effects
+        return existing;
+      }
+
+      throw new Error(
+        `Cannot confirm delivery: logistics status is '${existing.status}', expected one of ASSIGNED, DISPATCHED, IN_TRANSIT, ARRIVED`
+      );
+    }
+
+    const logistics = updatedRows[0];
+
+    // Update rental state to DELIVERED (at most once)
+    if (logistics.rental_request_id) {
+      await supabase
+        .from('rental_requests')
+        .update({ current_state: 'DELIVERED' })
+        .eq('id', logistics.rental_request_id);
+    }
 
     return logistics;
   },

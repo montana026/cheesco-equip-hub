@@ -1,0 +1,14 @@
+# Supabase Project Configuration
+project_id = "vmnszggrtvzspquwcrjt"
+
+[functions.initialize-payment]
+verify_jwt = true
+
+[functions.paystack-webhook]
+verify_jwt = false
+
+[functions.flutterwave-webhook]
+verify_jwt = false
+
+[functions.confirm-bank-transfer]
+verify_jwt = true

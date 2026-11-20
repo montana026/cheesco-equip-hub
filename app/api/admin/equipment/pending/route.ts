@@ -1,86 +1,116 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { supabaseServer } from '@/lib/supabase/server';
+import { verifyAdminAuth } from '@/lib/admin-auth';
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify authentication
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await verifyAdminAuth(request, [
+      'VERIFICATION_ADMIN',
+      'OPERATIONS_ADMIN',
+      'SUPER_ADMIN',
+    ]);
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user } } = await supabase.auth.getUser(token);
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Verify user has verification admin role
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!userData || !['VERIFICATION_ADMIN', 'SUPER_ADMIN'].includes(userData.role)) {
+    if (!auth.authorized) {
       return NextResponse.json(
-        { error: 'Forbidden: Verification admin access required' },
-        { status: 403 }
+        { error: auth.error || 'Forbidden: Admin access required' },
+        { status: auth.status || 403 }
       );
     }
 
-    // Fetch pending equipment with merchant info and images
-    const { data: equipment, error } = await supabase
+    // Fetch pending equipment with merchant info using supabaseServer
+    const { data: equipment, error } = await supabaseServer
       .from('equipment')
       .select(`
         *,
-        merchant:merchant_profiles!inner(
+        merchant:merchant_profiles(
           id,
           business_name,
-          user:users!inner(full_name)
+          user:users!merchant_profiles_user_id_fkey(full_name, email, phone)
         ),
-        images:equipment_images(image_url, is_primary, display_order)
+        equipment_images(image_url, is_primary)
       `)
-      .in('verification_status', ['SUBMITTED', 'UNDER_REVIEW', 'MORE_INFORMATION_REQUIRED'])
-      .order('created_at', { ascending: true });
+      .neq('verification_status', 'VERIFIED')
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching pending equipment:', error);
-      throw error;
+      const { data: fallbackEq } = await supabaseServer
+        .from('equipment')
+        .select('*')
+        .neq('verification_status', 'VERIFIED')
+        .order('created_at', { ascending: false });
+
+      return NextResponse.json({
+        success: true,
+        data: (fallbackEq || []).map((eq: any) => ({
+          id: eq.id,
+          slug: eq.slug,
+          merchantName: eq.merchant_name || 'Fleet Merchant',
+          name: eq.name,
+          category: eq.category,
+          brand: eq.brand,
+          model: eq.model,
+          year: eq.year,
+          condition: eq.condition,
+          locationState: eq.location_state || 'Lagos',
+          locationCity: eq.location_city || 'Ikeja',
+          listingType: eq.listing_type,
+          merchantRentalRate: eq.merchant_rental_rate || 0,
+          salePrice: eq.sale_price,
+          verificationStatus: eq.verification_status,
+          createdAt: eq.created_at,
+          images: Array.isArray(eq.images) && eq.images.length > 0 ? eq.images : ["https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=70"],
+          privateDocuments: Array.isArray(eq.private_documents) ? eq.private_documents : [],
+        })),
+      });
     }
 
-    // Format the response
-    const formattedEquipment = equipment.map((eq: any) => ({
-      id: eq.id,
-      slug: eq.slug,
-      merchantName: eq.merchant.business_name || eq.merchant.user.full_name,
-      name: eq.name,
-      category: eq.category,
-      brand: eq.brand,
-      model: eq.model,
-      year: eq.year,
-      condition: eq.condition,
-      locationState: eq.location_state,
-      locationCity: eq.location_city,
-      listingType: eq.listing_type,
-      merchantRentalRate: eq.merchant_rental_rate,
-      salePrice: eq.sale_price,
-      verificationStatus: eq.verification_status,
-      createdAt: eq.created_at,
-      images: eq.images
-        .sort((a: any, b: any) => a.display_order - b.display_order)
-        .map((img: any) => img.image_url),
-    }));
+    // Format response
+    const formattedEquipment = (equipment || []).map((eq: any) => {
+      let imgList: string[] = [];
+      if (Array.isArray(eq.equipment_images) && eq.equipment_images.length > 0) {
+        imgList = eq.equipment_images.map((i: any) => i.image_url).filter(Boolean);
+      } else if (Array.isArray(eq.images) && eq.images.length > 0) {
+        imgList = eq.images;
+      } else if (typeof eq.images === 'string') {
+        try { imgList = JSON.parse(eq.images); } catch { imgList = [eq.images]; }
+      }
+      if (imgList.length === 0) {
+        imgList = ["https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=70"];
+      }
+
+      return {
+        id: eq.id,
+        slug: eq.slug,
+        merchantName: eq.merchant?.business_name || eq.merchant?.user?.full_name || eq.merchant_name || 'Fleet Merchant',
+        merchantEmail: eq.merchant?.user?.email || '',
+        merchantPhone: eq.merchant?.user?.phone || '',
+        name: eq.name,
+        category: eq.category,
+        brand: eq.brand,
+        model: eq.model,
+        year: eq.year,
+        condition: eq.condition,
+        locationState: eq.location_state,
+        locationCity: eq.location_city,
+        listingType: eq.listing_type,
+        merchantRentalRate: eq.merchant_rental_rate,
+        salePrice: eq.sale_price,
+        verificationStatus: eq.verification_status,
+        createdAt: eq.created_at,
+        images: imgList,
+        privateDocuments: Array.isArray(eq.private_documents) ? eq.private_documents : [],
+      };
+    });
 
     return NextResponse.json({
       success: true,
       data: formattedEquipment,
     });
   } catch (error: any) {
-    console.error('Error in pending equipment route:', error);
+    console.error('[/api/admin/equipment/pending] Error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch pending equipment' },
+      { error: 'An internal error occurred. Please try again.' },
       { status: 500 }
     );
   }

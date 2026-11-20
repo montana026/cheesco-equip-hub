@@ -24,7 +24,7 @@ export default function ThankYouClient() {
             </ol>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="/dashboard/customer" className="inline-block rounded-lg bg-cheesco-yellow px-8 py-3 font-bold text-canvas hover:bg-cheesco-yellow-bright">
+            <a href="/dashboard/customer" className="inline-block rounded-lg bg-cheesco-yellow px-8 py-3 font-bold text-[#0A0D14] hover:bg-cheesco-yellow-bright">
               View Your Request
             </a>
             <a href="/browse" className="inline-block rounded-lg border border-cheesco-yellow px-8 py-3 font-bold text-cheesco-yellow hover:bg-cheesco-yellow/10">

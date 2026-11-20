@@ -48,7 +48,9 @@ Despite our best efforts, no system is 100% secure. If you suspect a security in
   },
   {
     heading: "5. Cookies & Tracking",
-    body: `We use essential cookies to keep you signed in and maintain session security. We also use analytics cookies (e.g. Google Analytics) to understand aggregate usage patterns. You can manage cookie preferences in your browser settings; however, disabling essential cookies will prevent you from using the platform.`,
+    body: `We use essential cookies to keep you signed in and maintain session security. We also use functional, analytics, and marketing cookies to enhance marketplace performance and evaluate referral attribution.
+    
+You have complete control over non-essential cookies. You can manage or update your choices anytime via our interactive Cookie Preferences Center or read our comprehensive Cookie Policy at /cookies. Please note that disabling essential cookies will prevent you from logging in or completing bookings.`,
   },
   {
     heading: "6. Your Rights",

@@ -1,18 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authService } from '@/lib/services/auth.service';
+import { clearAuthCookies } from '@/lib/cookies';
 
 export async function POST(request: NextRequest) {
   try {
-    await authService.signOut();
-
-    return NextResponse.json({
-      message: 'Logged out successfully',
-    });
+    const token =
+      request.cookies.get('sb-access-token')?.value ||
+      request.cookies.get('auth_token')?.value;
+    await authService.signOut(token);
   } catch (error: any) {
     console.error('Logout error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to logout' },
-      { status: 500 }
-    );
   }
+
+  const response = NextResponse.json({
+    message: 'Logged out successfully',
+  });
+
+  // Thoroughly clear all session and auth cookies
+  clearAuthCookies(response);
+
+  return response;
 }

@@ -1,7 +1,5 @@
 /* ── Supabase Storage Service for File Uploads ──────────────────── */
 
-import { supabase } from '@/lib/supabase/client';
-
 export interface UploadResult {
   url: string;
   path: string;
@@ -16,7 +14,9 @@ export interface UploadOptions {
 
 class StorageService {
   /**
-   * Upload a file to Supabase Storage
+   * Upload a file to Supabase Storage via /api/upload
+   * Authenticated via user session cookies, rate-limited, and enforced with strict file validation.
+   * Never directly imports server-side Supabase credentials into client bundles.
    */
   async uploadFile(
     file: File,
@@ -25,53 +25,25 @@ class StorageService {
     try {
       const { bucket, path, isPublic = false } = options;
 
-      // Generate unique filename
-      const timestamp = Date.now();
-      const randomString = Math.random().toString(36).substring(2, 15);
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${timestamp}-${randomString}.${fileExt}`;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('bucket', bucket);
+      if (path) formData.append('path', path);
+      formData.append('isPublic', String(isPublic));
 
-      // Construct storage path
-      const storagePath = path ? `${path}/${fileName}` : fileName;
+      const baseUrl = typeof window === 'undefined' ? (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '') : '';
+      const res = await fetch(`${baseUrl}/api/upload`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: formData,
+      });
 
-      // Upload file
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .upload(storagePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-
-      if (error) {
-        console.error('Storage upload error:', error);
-        throw new Error(`Failed to upload file: ${error.message}`);
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Failed to upload file');
       }
 
-      // Get URL
-      let url: string;
-      if (isPublic) {
-        const { data: publicUrlData } = supabase.storage
-          .from(bucket)
-          .getPublicUrl(storagePath);
-        url = publicUrlData.publicUrl;
-      } else {
-        // For private files, generate signed URL (valid for 1 year)
-        const { data: signedUrlData, error: urlError } = await supabase.storage
-          .from(bucket)
-          .createSignedUrl(storagePath, 31536000); // 1 year
-
-        if (urlError) {
-          throw new Error(`Failed to generate signed URL: ${urlError.message}`);
-        }
-
-        url = signedUrlData.signedUrl;
-      }
-
-      return {
-        url,
-        path: storagePath,
-        publicUrl: isPublic ? url : undefined,
-      };
+      return json.data;
     } catch (error: any) {
       console.error('File upload error:', error);
       throw error;
@@ -90,61 +62,14 @@ class StorageService {
   }
 
   /**
-   * Delete a file from storage
-   */
-  async deleteFile(bucket: string, path: string): Promise<void> {
-    const { error } = await supabase.storage
-      .from(bucket)
-      .remove([path]);
-
-    if (error) {
-      console.error('Storage delete error:', error);
-      throw new Error(`Failed to delete file: ${error.message}`);
-    }
-  }
-
-  /**
-   * Delete multiple files
-   */
-  async deleteFiles(bucket: string, paths: string[]): Promise<void> {
-    const { error } = await supabase.storage
-      .from(bucket)
-      .remove(paths);
-
-    if (error) {
-      console.error('Storage bulk delete error:', error);
-      throw new Error(`Failed to delete files: ${error.message}`);
-    }
-  }
-
-  /**
-   * Get a signed URL for a private file
-   */
-  async getSignedUrl(
-    bucket: string,
-    path: string,
-    expiresIn: number = 3600 // 1 hour default
-  ): Promise<string> {
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .createSignedUrl(path, expiresIn);
-
-    if (error) {
-      throw new Error(`Failed to generate signed URL: ${error.message}`);
-    }
-
-    return data.signedUrl;
-  }
-
-  /**
    * Get public URL for a public file
    */
   getPublicUrl(bucket: string, path: string): string {
-    const { data } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(path);
-
-    return data.publicUrl;
+    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
+    if (!supabaseUrl) {
+      throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set; cannot construct public storage URL');
+    }
+    return `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
   }
 
   /**

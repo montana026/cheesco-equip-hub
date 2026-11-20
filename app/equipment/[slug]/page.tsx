@@ -3,30 +3,35 @@ import { notFound } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { EquipmentDetailClient } from "@/components/equipment-detail";
-import { EQUIPMENT, equipmentBySlug } from "@/lib/seed";
+import { equipmentService } from "@/lib/services/equipment.service";
 
 interface Props {
   params: Promise<{ slug: string }>;
 }
 
-export function generateStaticParams() {
-  return EQUIPMENT.map((eq) => ({ slug: eq.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const eq = equipmentBySlug(slug);
-  if (!eq) return { title: "Equipment Not Found" };
+  const eq = await equipmentService.getEquipmentBySlug(slug);
+  if (!eq) return { title: "Equipment Not Found | Cheesco Equip Hub" };
   return {
-    title: `${eq.brand} ${eq.model} — ${eq.category}`,
-    description: `${eq.name} in ${eq.locationCity}, ${eq.locationState}. ${eq.description}`,
+    title: `${eq.brand} ${eq.model} — ${eq.category} | Cheesco Equip Hub`,
+    description: `${eq.name} in ${eq.locationCity}, ${eq.locationState}. ${eq.description || ""}`,
   };
 }
 
 export default async function EquipmentPage({ params }: Props) {
   const { slug } = await params;
-  const eq = equipmentBySlug(slug);
+  const eq = await equipmentService.getEquipmentBySlug(slug);
   if (!eq) notFound();
+
+  // Track ad impression if equipment has an active promotion campaign
+  if (eq.id && eq.promotionTier && eq.promotionTier !== "NONE") {
+    import("@/lib/services/ad-campaign.service")
+      .then(({ adCampaignService }) => adCampaignService.recordMetric(eq.id, "impression"))
+      .catch(() => {});
+  }
 
   return (
     <>

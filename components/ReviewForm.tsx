@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { storageService } from '@/lib/services/storage.service';
+import { apiFetch } from '@/lib/api-client';
 
 interface ReviewFormProps {
   rental: {
@@ -95,8 +96,6 @@ export default function ReviewForm({
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('auth_token');
-
       // Calculate overall rating
       const overallRating = ratings.reduce((sum, r) => sum + r.score, 0) / ratings.length;
 
@@ -118,11 +117,10 @@ export default function ReviewForm({
         images: imageUrls, // Now using the uploaded image URLs
       };
 
-      const response = await fetch('/api/reviews', {
+      const response = await apiFetch('/api/reviews', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });

@@ -182,15 +182,14 @@ CREATE TYPE ticket_category AS ENUM (
 CREATE TABLE support_tickets (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   ticket_number TEXT UNIQUE NOT NULL,
-  customer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   category ticket_category NOT NULL,
-  priority ticket_priority NOT NULL DEFAULT 'MEDIUM',
-  status ticket_status NOT NULL DEFAULT 'OPEN',
   subject TEXT NOT NULL,
   description TEXT NOT NULL,
+  status ticket_status NOT NULL DEFAULT 'OPEN',
+  priority ticket_priority NOT NULL DEFAULT 'MEDIUM',
   assigned_to UUID REFERENCES users(id),
-  resolved_by UUID REFERENCES users(id),
-  closed_at TIMESTAMPTZ,
+  resolved_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -206,7 +205,7 @@ CREATE TABLE ticket_messages (
 );
 
 -- Indexes for support tickets
-CREATE INDEX idx_support_tickets_customer_id ON support_tickets(customer_id);
+CREATE INDEX idx_support_tickets_user_id ON support_tickets(user_id);
 CREATE INDEX idx_support_tickets_status ON support_tickets(status);
 CREATE INDEX idx_support_tickets_priority ON support_tickets(priority);
 CREATE INDEX idx_support_tickets_assigned_to ON support_tickets(assigned_to);
@@ -276,3 +275,18 @@ CREATE TABLE ad_targeting (
 CREATE INDEX idx_ad_campaigns_merchant_id ON ad_campaigns(merchant_id);
 CREATE INDEX idx_ad_campaigns_status ON ad_campaigns(status);
 CREATE INDEX idx_ad_targeting_ad_campaign_id ON ad_targeting(ad_campaign_id);
+
+-- ============================================================================
+-- CORE OPERATIONAL & PERFORMANCE INDEXES (HOT QUERIES)
+-- ============================================================================
+
+CREATE INDEX idx_rental_requests_customer_id ON rental_requests(customer_id);
+CREATE INDEX idx_rental_requests_merchant_id ON rental_requests(merchant_id);
+CREATE INDEX idx_rental_requests_current_state ON rental_requests(current_state);
+CREATE INDEX idx_payments_rental_request_id ON payments(rental_request_id);
+CREATE INDEX idx_payments_payer_id ON payments(payer_id);
+CREATE INDEX idx_payments_status ON payments(status);
+CREATE INDEX idx_quotations_rental_request_id ON quotations(rental_request_id);
+CREATE INDEX idx_equipment_merchant_id ON equipment(merchant_id);
+CREATE INDEX idx_equipment_verification_status ON equipment(verification_status);
+CREATE INDEX idx_equipment_availability_status ON equipment(availability_status);

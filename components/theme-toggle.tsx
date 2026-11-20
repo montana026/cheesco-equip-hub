@@ -12,9 +12,9 @@ function ThemeToggleContent() {
       onClick={toggleTheme}
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
-      className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg transition-colors hover:bg-cheesco-yellow/10"
-      title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-      aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+      className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-700/80 bg-zinc-900/60 transition-colors hover:border-cheesco-yellow/60 hover:bg-zinc-800"
+      title={`Current mode: ${theme}. Click to switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+      aria-label={`Current mode: ${theme}. Click to switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
     >
       {theme === 'light' ? (
         <motion.svg

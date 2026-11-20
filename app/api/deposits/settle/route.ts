@@ -1,34 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { supabaseServer } from '@/lib/supabase/server';
 import { initiateRefund } from '@/lib/services/paystack.service';
 import { notificationService } from '@/lib/services/notification.service';
+import { verifyAdminAuth, verifyCustomerAuth } from '@/lib/admin-auth';
+import { PAYMENT_STATUS, DEPOSIT_STATUS, type DepositStatus } from '@/lib/types';
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify authentication
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user } } = await supabase.auth.getUser(token);
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Verify user has operations/finance admin role
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!userData || !['OPERATIONS_ADMIN', 'FINANCE_ADMIN', 'SUPER_ADMIN'].includes(userData.role)) {
+    const auth = await verifyAdminAuth(request, ['OPERATIONS_ADMIN', 'FINANCE_ADMIN', 'SUPER_ADMIN']);
+    if (!auth.authorized) {
       return NextResponse.json(
-        { error: 'Forbidden: Admin access required' },
-        { status: 403 }
+        { error: auth.error || 'Forbidden: Admin access required' },
+        { status: auth.status || 403 }
       );
     }
 
@@ -41,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get deposit payment record
-    const { data: depositPayment, error: depositError } = await supabase
+    const { data: depositPayment, error: depositError } = await supabaseServer
       .from('payments')
       .select('*')
       .eq('id', depositId)
@@ -53,34 +36,44 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate new deposit status
-    let newDepositStatus: 'RELEASED' | 'PARTIALLY_DEDUCTED' | 'FULLY_DEDUCTED';
+    let newDepositStatus: DepositStatus;
     let refundAmount: number;
 
     if (action === 'RELEASE') {
-      newDepositStatus = 'RELEASED';
+      newDepositStatus = DEPOSIT_STATUS.RELEASED;
       refundAmount = depositPayment.amount;
     } else if (action === 'FULL') {
-      newDepositStatus = 'FULLY_DEDUCTED';
+      newDepositStatus = DEPOSIT_STATUS.FULLY_DEDUCTED;
       refundAmount = 0;
     } else {
-      newDepositStatus = 'PARTIALLY_DEDUCTED';
+      newDepositStatus = DEPOSIT_STATUS.PARTIALLY_DEDUCTED;
       refundAmount = depositPayment.amount - deductionAmount;
     }
 
-    // Update payment record
-    const { error: updateError } = await supabase
+    // Update payment record atomically only if currently HELD
+    const { data: updatedPaymentRows, error: updateError } = await supabaseServer
       .from('payments')
       .update({
         deposit_status: newDepositStatus,
         deposit_deduction_amount: depositPayment.amount - refundAmount,
         deposit_released_at: new Date().toISOString(),
+        refund_amount: refundAmount,
+        deposit_refunded_by: auth.userId,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', depositId);
+      .eq('id', depositId)
+      .eq('deposit_status', DEPOSIT_STATUS.HELD)
+      .select('id');
 
     if (updateError) {
       console.error('Error updating deposit:', updateError);
       throw new Error('Failed to update deposit status');
+    }
+
+    if (!updatedPaymentRows || updatedPaymentRows.length === 0) {
+      return NextResponse.json({
+        error: `Deposit cannot be settled: current status is '${depositPayment.deposit_status}', expected 'HELD'`,
+      }, { status: 409 });
     }
 
     // Trigger actual refund via Paystack if refundAmount > 0
@@ -94,15 +87,15 @@ export async function POST(request: NextRequest) {
 
         if (refundResult.success) {
           // Update refund record with Paystack response
-          await supabase
+          await supabaseServer
             .from('payments')
             .update({
-              status: 'REFUNDED',
+              status: PAYMENT_STATUS.REFUNDED,
               gateway_response: refundResult.data,
             })
             .eq('rental_request_id', rentalRequestId)
             .eq('payment_type', 'DAMAGE_DEPOSIT')
-            .eq('status', 'PENDING');
+            .eq('status', PAYMENT_STATUS.PENDING);
         } else {
           console.error('Paystack refund failed:', refundResult.error);
           // Keep status as PENDING for manual follow-up
@@ -113,7 +106,7 @@ export async function POST(request: NextRequest) {
       }
     } else if (refundAmount > 0) {
       // Create refund record when no payment reference exists
-      const { error: refundError } = await supabase
+      const { error: refundError } = await supabaseServer
         .from('payments')
         .insert({
           rental_request_id: rentalRequestId,
@@ -121,7 +114,7 @@ export async function POST(request: NextRequest) {
           amount: refundAmount,
           currency: 'NGN',
           payment_type: 'DAMAGE_DEPOSIT',
-          status: 'PENDING',
+          status: PAYMENT_STATUS.PENDING,
           payment_gateway: 'PAYSTACK',
           gateway_response: {
             type: 'REFUND_PENDING_MANUAL',
@@ -137,7 +130,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update rental state to DEPOSIT_SETTLEMENT
-    const { error: stateError } = await supabase
+    const { error: stateError } = await supabaseServer
       .from('rental_requests')
       .update({ current_state: 'DEPOSIT_SETTLEMENT' })
       .eq('id', rentalRequestId);
@@ -147,11 +140,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Log state change
-    await supabase.from('rental_state_history').insert({
+    await supabaseServer.from('rental_state_history').insert({
       rental_request_id: rentalRequestId,
       from_state: 'POST_RENTAL_INSPECTION',
       to_state: 'DEPOSIT_SETTLEMENT',
-      changed_by: user.id,
+      changed_by: auth.userId || null,
       notes: `Deposit ${newDepositStatus.toLowerCase().replace('_', ' ')}. ${
         refundAmount > 0 ? `Refund amount: ₦${refundAmount.toLocaleString()}` : 'No refund'
       }`,
@@ -160,7 +153,7 @@ export async function POST(request: NextRequest) {
     // Send notification to customer about deposit settlement
     try {
       // Get rental request with customer info
-      const { data: rentalRequest } = await supabase
+      const { data: rentalRequest } = await supabaseServer
         .from('rental_requests')
         .select(`
           *,
@@ -201,9 +194,9 @@ export async function POST(request: NextRequest) {
       message: 'Deposit settled successfully',
     });
   } catch (error: any) {
-    console.error('Error settling deposit:', error);
+    console.error('[/api/deposits/settle] Error settling deposit:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to settle deposit' },
+      { error: 'An internal error occurred. Please try again.' },
       { status: 500 }
     );
   }
@@ -215,24 +208,51 @@ export async function GET(request: NextRequest) {
     const rentalRequestId = searchParams.get('rentalRequestId');
 
     // Verify authentication
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user } } = await supabase.auth.getUser(token);
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await verifyCustomerAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: auth.status || 401 });
     }
 
     if (!rentalRequestId) {
       return NextResponse.json({ error: 'Rental request ID required' }, { status: 400 });
     }
 
+    const isAdmin = ['OPERATIONS_ADMIN', 'FINANCE_ADMIN', 'SUPER_ADMIN'].includes(auth.role);
+    if (!isAdmin) {
+      const { data: rental } = await supabaseServer
+        .from('rental_requests')
+        .select('customer_id, merchant_id')
+        .eq('id', rentalRequestId)
+        .maybeSingle();
+
+      if (!rental) {
+        return NextResponse.json({ error: 'Rental request not found' }, { status: 404 });
+      }
+
+      let isMerchant = false;
+      if (rental.merchant_id) {
+        const { data: merchantProfile } = await supabaseServer
+          .from('merchant_profiles')
+          .select('id')
+          .eq('user_id', auth.userId)
+          .maybeSingle();
+
+        if (merchantProfile && merchantProfile.id === rental.merchant_id) {
+          isMerchant = true;
+        }
+      }
+
+      const isCustomer = rental.customer_id === auth.userId;
+      if (!isCustomer && !isMerchant) {
+        return NextResponse.json(
+          { error: 'Forbidden: You do not have access to this deposit' },
+          { status: 403 }
+        );
+      }
+    }
+
     // Get deposit payment
-    const { data: deposit, error } = await supabase
+    const { data: deposit, error } = await supabaseServer
       .from('payments')
       .select('*')
       .eq('rental_request_id', rentalRequestId)
@@ -248,9 +268,9 @@ export async function GET(request: NextRequest) {
       data: deposit,
     });
   } catch (error: any) {
-    console.error('Error fetching deposit:', error);
+    console.error('[/api/deposits/settle] Error fetching deposit:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch deposit' },
+      { error: 'An internal error occurred. Please try again.' },
       { status: 500 }
     );
   }

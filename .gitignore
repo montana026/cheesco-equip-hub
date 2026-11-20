@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -15,6 +16,8 @@
 
 # next.js
 /.next/
+.next
+.next/
 /out/
 
 # production
@@ -23,6 +26,8 @@
 # misc
 .DS_Store
 *.pem
+grep-results.txt
+supabase/.temp/
 
 # debug
 npm-debug.log*

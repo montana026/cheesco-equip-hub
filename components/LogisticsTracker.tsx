@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { apiFetch } from '@/lib/api-client';
 
 interface LogisticsTrackerProps {
   rentalRequestId: string;
@@ -40,12 +41,7 @@ export default function LogisticsTracker({ rentalRequestId, isAdmin = false }: L
   const fetchLogistics = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`/api/logistics?rentalRequestId=${rentalRequestId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await apiFetch(`/api/logistics?rentalRequestId=${rentalRequestId}`);
 
       const result = await response.json();
       if (result.success && result.data) {
@@ -64,12 +60,10 @@ export default function LogisticsTracker({ rentalRequestId, isAdmin = false }: L
 
     setConfirmingDelivery(true);
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`/api/logistics/${logistics.id}/confirm-delivery`, {
+      const response = await apiFetch(`/api/logistics/${logistics.id}/confirm-delivery`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           notes: 'Delivery confirmed by customer',

@@ -1,31 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { supabaseServer } from '@/lib/supabase/server';
 import { notificationService } from '@/lib/services/notification.service';
+import { verifyCustomerAuth } from '@/lib/admin-auth';
+
+const ADMIN_ROLES = ['SUPER_ADMIN', 'OPERATIONS_ADMIN', 'FINANCE_ADMIN', 'VERIFICATION_ADMIN', 'SUPPORT_ADMIN'];
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify authentication
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user } } = await supabase.auth.getUser(token);
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Verify authentication via verifyCustomerAuth (supports cookies and Bearer token)
+    const auth = await verifyCustomerAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: auth.status || 401 });
     }
 
     const body = await request.json();
     const { rentalRequestId, signature, ipAddress } = body;
 
     // Verify rental request belongs to this customer
-    const { data: rentalRequest, error: rentalError } = await supabase
+    const { data: rentalRequest, error: rentalError } = await supabaseServer
       .from('rental_requests')
       .select('*, quotation:quotations(*)')
       .eq('id', rentalRequestId)
-      .eq('customer_id', user.id)
+      .eq('customer_id', auth.userId)
       .single();
 
     if (rentalError || !rentalRequest) {
@@ -44,7 +40,7 @@ export async function POST(request: NextRequest) {
     const termsAndConditions = generateAgreementTerms(rentalRequest);
 
     // Create or update rental agreement
-    const { data: agreement, error: agreementError } = await supabase
+    const { data: agreement, error: agreementError } = await supabaseServer
       .from('rental_agreements')
       .upsert({
         rental_request_id: rentalRequestId,
@@ -64,7 +60,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update rental state to AGREEMENT_SIGNED
-    const { error: stateError } = await supabase
+    const { error: stateError } = await supabaseServer
       .from('rental_requests')
       .update({ current_state: 'AGREEMENT_SIGNED' })
       .eq('id', rentalRequestId);
@@ -74,18 +70,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Log state change
-    await supabase.from('rental_state_history').insert({
+    await supabaseServer.from('rental_state_history').insert({
       rental_request_id: rentalRequestId,
       from_state: 'QUOTATION_ACCEPTED',
       to_state: 'AGREEMENT_SIGNED',
-      changed_by: user.id,
+      changed_by: auth.userId,
       notes: `Agreement signed digitally. Signature: ${signature}`,
     });
 
     // Send notification to operations team
     try {
       // Get rental request with customer and merchant info
-      const { data: rentalRequestWithDetails } = await supabase
+      const { data: rentalRequestWithDetails } = await supabaseServer
         .from('rental_requests')
         .select(`
           *,
@@ -103,7 +99,7 @@ export async function POST(request: NextRequest) {
           type: 'SUCCESS',
           category: 'AGREEMENT',
           referenceId: rentalRequestWithDetails.reference_number,
-          actionUrl: `/admin/operations/rentals/${rentalRequestId}`,
+          actionUrl: `/admin/operations?requestId=${rentalRequestId}`,
           channels: ['IN_APP', 'EMAIL'],
         });
       }
@@ -120,9 +116,9 @@ export async function POST(request: NextRequest) {
       message: 'Agreement signed successfully',
     });
   } catch (error: any) {
-    console.error('Error signing agreement:', error);
+    console.error('[/api/agreements/sign] Error signing agreement:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to sign agreement' },
+      { error: 'An internal error occurred. Please try again.' },
       { status: 500 }
     );
   }
@@ -134,24 +130,49 @@ export async function GET(request: NextRequest) {
     const rentalRequestId = searchParams.get('rentalRequestId');
 
     // Verify authentication
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user } } = await supabase.auth.getUser(token);
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await verifyCustomerAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: auth.status || 401 });
     }
 
     if (!rentalRequestId) {
       return NextResponse.json({ error: 'Rental request ID required' }, { status: 400 });
     }
 
+    // Ownership check: must be admin, customer, or merchant for this rental
+    const isAdmin = ADMIN_ROLES.includes(auth.role);
+    if (!isAdmin) {
+      const { data: rental } = await supabaseServer
+        .from('rental_requests')
+        .select('customer_id, merchant_id')
+        .eq('id', rentalRequestId)
+        .maybeSingle();
+
+      if (!rental) {
+        return NextResponse.json({ error: 'Rental request not found' }, { status: 404 });
+      }
+
+      let isMerchant = false;
+      if (rental.merchant_id) {
+        const { data: merchantProfile } = await supabaseServer
+          .from('merchant_profiles')
+          .select('id')
+          .eq('user_id', auth.userId)
+          .maybeSingle();
+
+        if (merchantProfile && merchantProfile.id === rental.merchant_id) {
+          isMerchant = true;
+        }
+      }
+
+      const isCustomer = rental.customer_id === auth.userId;
+      if (!isCustomer && !isMerchant) {
+        return NextResponse.json({ error: 'Forbidden: You do not have access to this agreement' }, { status: 403 });
+      }
+    }
+
     // Get agreement
-    const { data: agreement, error } = await supabase
+    const { data: agreement, error } = await supabaseServer
       .from('rental_agreements')
       .select('*')
       .eq('rental_request_id', rentalRequestId)
@@ -166,9 +187,9 @@ export async function GET(request: NextRequest) {
       data: agreement,
     });
   } catch (error: any) {
-    console.error('Error fetching agreement:', error);
+    console.error('[/api/agreements/sign] Error fetching agreement:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch agreement' },
+      { error: 'An internal error occurred. Please try again.' },
       { status: 500 }
     );
   }

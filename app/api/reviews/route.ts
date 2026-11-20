@@ -1,29 +1,68 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { supabaseServer } from '@/lib/supabase/server';
+import { checkRateLimit, checkDailyQuota, COST_CONTROLS } from '@/lib/rate-limit';
+import { verifyCustomerAuth } from '@/lib/admin-auth';
+import { z } from 'zod';
+
+const createReviewSchema = z.object({
+  rentalRequestId: z.string().uuid({ message: 'Invalid rentalRequestId UUID' }),
+  equipmentId: z.string().uuid({ message: 'Invalid equipmentId UUID' }),
+  merchantId: z.string().uuid({ message: 'Invalid merchantId UUID' }),
+  overallRating: z.number().min(1, 'Rating must be at least 1').max(5, 'Rating cannot exceed 5'),
+  ratings: z.object({
+    equipment_condition: z.number().min(1, 'Equipment condition rating must be between 1 and 5').max(5),
+    merchant_service: z.number().min(1, 'Merchant service rating must be between 1 and 5').max(5),
+    delivery_experience: z.number().min(1, 'Delivery experience rating must be between 1 and 5').max(5),
+    value_for_money: z.number().min(1, 'Value for money rating must be between 1 and 5').max(5),
+  }),
+  reviewText: z.string().max(2000, 'Review text cannot exceed 2000 characters').optional().default(''),
+  wouldRecommend: z.boolean().optional().default(true),
+  images: z.array(z.string()).optional().default([]),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify authentication
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Verify authentication via verifyCustomerAuth
+    const auth = await verifyCustomerAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: auth.status || 401 });
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user } } = await supabase.auth.getUser(token);
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Rate limiting & Abuse protection
+    const rateLimit = await checkRateLimit(`review_submit:${auth.userId}`, 5, 60_000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many reviews submitted. Please wait a minute before submitting again.' },
+        { status: 429 }
+      );
     }
 
-    const body = await request.json();
+    const quota = await checkDailyQuota('review', auth.userId, COST_CONTROLS.MAX_DAILY_REVIEWS_PER_USER);
+    if (!quota.allowed) {
+      return NextResponse.json(
+        { error: `Daily review quota reached (${COST_CONTROLS.MAX_DAILY_REVIEWS_PER_USER} reviews/day). Thank you for your feedback!` },
+        { status: 429 }
+      );
+    }
+
+    const rawBody = await request.json().catch(() => null);
+    if (!rawBody) {
+      return NextResponse.json({ error: 'Invalid JSON request body' }, { status: 400 });
+    }
+
+    const parseResult = createReviewSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      const errorMessage = parseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+      return NextResponse.json({ error: `Validation failed: ${errorMessage}` }, { status: 400 });
+    }
+    const body = parseResult.data;
 
     // Verify rental belongs to this customer and is completed
-    const { data: rental, error: rentalError } = await supabase
+    const { data: rental, error: rentalError } = await supabaseServer
       .from('rental_requests')
       .select('*, customer:users!customer_id(full_name)')
       .eq('id', body.rentalRequestId)
-      .eq('customer_id', user.id)
+      .eq('customer_id', auth.userId)
       .single();
 
     if (rentalError || !rental) {
@@ -39,7 +78,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if review already exists
-    const { data: existingReview } = await supabase
+    const { data: existingReview } = await supabaseServer
       .from('reviews')
       .select('id')
       .eq('rental_request_id', body.rentalRequestId)
@@ -53,13 +92,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Create review
-    const { data: review, error: reviewError } = await supabase
+    const { data: review, error: reviewError } = await supabaseServer
       .from('reviews')
       .insert({
         rental_request_id: body.rentalRequestId,
         equipment_id: body.equipmentId,
         merchant_id: body.merchantId,
-        customer_id: user.id,
+        customer_id: auth.userId,
         overall_rating: body.overallRating,
         equipment_condition_rating: body.ratings.equipment_condition,
         merchant_service_rating: body.ratings.merchant_service,
@@ -92,9 +131,9 @@ export async function POST(request: NextRequest) {
       message: 'Review submitted successfully',
     });
   } catch (error: any) {
-    console.error('Error submitting review:', error);
+    console.error('[/api/reviews] POST Error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to submit review' },
+      { error: 'An internal error occurred. Please try again.' },
       { status: 500 }
     );
   }
@@ -107,7 +146,7 @@ export async function GET(request: NextRequest) {
     const merchantId = searchParams.get('merchantId');
     const status = searchParams.get('status') || 'APPROVED';
 
-    let query = supabase
+    let query = supabaseServer
       .from('reviews')
       .select(`
         *,
@@ -137,9 +176,9 @@ export async function GET(request: NextRequest) {
       data: reviews,
     });
   } catch (error: any) {
-    console.error('Error fetching reviews:', error);
+    console.error('[/api/reviews] GET Error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch reviews' },
+      { error: 'An internal error occurred. Please try again.' },
       { status: 500 }
     );
   }
@@ -148,7 +187,7 @@ export async function GET(request: NextRequest) {
 async function updateEquipmentRating(equipmentId: string) {
   try {
     // Get all approved reviews for this equipment
-    const { data: reviews } = await supabase
+    const { data: reviews } = await supabaseServer
       .from('reviews')
       .select('overall_rating')
       .eq('equipment_id', equipmentId)
@@ -159,7 +198,7 @@ async function updateEquipmentRating(equipmentId: string) {
       const reviewCount = reviews.length;
 
       // Update equipment with new rating
-      await supabase
+      await supabaseServer
         .from('equipment')
         .update({
           average_rating: avgRating,
@@ -175,7 +214,7 @@ async function updateEquipmentRating(equipmentId: string) {
 async function updateMerchantRating(merchantId: string) {
   try {
     // Get all approved reviews for this merchant
-    const { data: reviews } = await supabase
+    const { data: reviews } = await supabaseServer
       .from('reviews')
       .select('overall_rating, merchant_service_rating')
       .eq('merchant_id', merchantId)
@@ -187,7 +226,7 @@ async function updateMerchantRating(merchantId: string) {
       const reviewCount = reviews.length;
 
       // Update merchant profile with new rating
-      await supabase
+      await supabaseServer
         .from('merchant_profiles')
         .update({
           average_rating: avgRating,

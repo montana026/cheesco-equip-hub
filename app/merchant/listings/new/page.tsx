@@ -2,21 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSession, guardRoute } from "@/lib/auth";
 import type { SessionUser } from "@/lib/auth";
+import { useAuthGuard } from "@/lib/hooks/use-auth-guard";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import type { EquipmentCategory, ListingType, EquipmentCondition } from "@/lib/types";
-import { CATEGORY_META } from "@/lib/seed";
+import { CATEGORY_META } from "@/lib/seed-ui";
 import { storageService } from "@/lib/services/storage.service";
 import { v4 as uuidv4 } from 'uuid';
+import { apiFetch } from "@/lib/api-client";
 
 const NAV = [
   { href: "/merchant/dashboard", label: "Overview" },
   { href: "/merchant/listings", label: "My Listings" },
   { href: "/merchant/ads", label: "Ad Campaigns" },
-  { href: "/merchant/earnings", label: "Earnings" },
+  { href: "/merchant/earnings", label: "Earnings & Payouts" },
   { href: "/merchant/verification", label: "Verification (KYC)" },
 ];
 
@@ -32,7 +33,7 @@ const NIGERIAN_STATES = [
 
 export default function NewEquipmentPage() {
   const router = useRouter();
-  const [user, setUser] = useState<SessionUser | null>(null);
+  const { user, ready } = useAuthGuard("MERCHANT");
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
 
@@ -64,13 +65,6 @@ export default function NewEquipmentPage() {
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [documents, setDocuments] = useState<File[]>([]);
-
-  useEffect(() => {
-    const s = getSession();
-    const redirect = guardRoute("MERCHANT", s);
-    if (redirect) { router.replace(redirect); return; }
-    setUser(s);
-  }, [router]);
 
   const updateField = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -132,51 +126,12 @@ export default function NewEquipmentPage() {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("auth_token");
+      // 1. Upload images to Supabase Storage
+      const uploadFolderId = uuidv4();
+      const uploadResults = await storageService.uploadEquipmentImages(images, uploadFolderId);
+      const imageUrls = uploadResults.map((r) => r.url);
 
-      // First create a temporary equipment entry to get an ID for storage paths
-      const tempPayload = {
-        name: formData.name + " (TEMP)",
-        category: formData.category,
-        brand: formData.brand,
-        model: formData.model,
-        year: formData.year,
-        condition: formData.condition,
-        locationState: formData.locationState,
-        locationCity: formData.locationCity,
-        operatingHours: formData.operatingHours,
-        description: formData.description,
-        specs: {},
-        listingType: formData.listingType,
-        salePrice: null,
-        merchantRentalRate: null,
-        isOperatorIncluded: false,
-        isDeliveryAvailable: false,
-        images: [],
-      };
-
-      const tempResponse = await fetch("/api/equipment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(tempPayload),
-      });
-
-      const tempResult = await tempResponse.json();
-
-      if (!tempResult.success) {
-        throw new Error(tempResult.error || "Failed to create temporary equipment");
-      }
-
-      const tempEquipmentId = tempResult.data.id;
-
-      // Upload images to Supabase Storage using the temporary equipment ID
-      const uploadResults = await storageService.uploadEquipmentImages(images, tempEquipmentId);
-      const imageUrls = uploadResults.map(r => r.url);
-
-      // Prepare specs
+      // 2. Prepare specs
       const specs: any = {};
       if (formData.operatingWeight) specs.operatingWeight = formData.operatingWeight;
       if (formData.maxLiftCapacity) specs.maxLiftCapacity = formData.maxLiftCapacity;
@@ -184,6 +139,7 @@ export default function NewEquipmentPage() {
       if (formData.enginePower) specs.enginePower = formData.enginePower;
       if (formData.fuelType) specs.fuelType = formData.fuelType;
 
+      // 3. Prepare payload
       const payload = {
         name: formData.name,
         category: formData.category,
@@ -204,11 +160,11 @@ export default function NewEquipmentPage() {
         images: imageUrls,
       };
 
-      const response = await fetch("/api/equipment", {
+      // 4. Create equipment listing in database
+      const response = await apiFetch("/api/equipment", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -219,51 +175,10 @@ export default function NewEquipmentPage() {
         throw new Error(result.error || "Failed to create equipment listing");
       }
 
-      // Update the equipment listing with correct data and delete the temporary one
-      const updateResponse = await fetch(`/api/equipment/${result.data.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          category: formData.category,
-          brand: formData.brand,
-          model: formData.model,
-          year: formData.year,
-          condition: formData.condition,
-          locationState: formData.locationState,
-          locationCity: formData.locationCity,
-          operatingHours: formData.operatingHours,
-          description: formData.description,
-          specs,
-          listingType: formData.listingType,
-          salePrice: formData.salePrice ? parseFloat(formData.salePrice) : null,
-          merchantRentalRate: formData.merchantRentalRate ? parseFloat(formData.merchantRentalRate) : null,
-          isOperatorIncluded: formData.isOperatorIncluded,
-          isDeliveryAvailable: formData.isDeliveryAvailable,
-          images: imageUrls,
-        }),
-      });
-
-      const updateResult = await updateResponse.json();
-
-      if (!updateResult.success) {
-        throw new Error(updateResult.error || "Failed to update equipment listing");
-      }
-
-      // Delete temporary equipment
-      await fetch(`/api/equipment/${tempEquipmentId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      toast.success("Equipment listing created! Awaiting verification.");
+      toast.success("Equipment listing submitted! Awaiting verification.");
       router.push("/merchant/listings");
     } catch (error: any) {
+      console.error("Listing submission error:", error);
       toast.error(error.message || "Failed to create listing");
     } finally {
       setLoading(false);

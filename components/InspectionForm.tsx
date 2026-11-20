@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { storageService } from '@/lib/services/storage.service';
+import { apiFetch } from '@/lib/api-client';
 
 type InspectionKind = 'PRE_DELIVERY' | 'POST_RENTAL';
 
@@ -113,8 +114,6 @@ export default function InspectionForm({
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('auth_token');
-
       // Upload photos to Supabase Storage
       const uploadResults = await storageService.uploadInspectionPhotos(photos, rentalRequest.id);
       const photoUrls = uploadResults.map(r => r.url);
@@ -131,11 +130,10 @@ export default function InspectionForm({
         depositDeductionRecommendation: depositDeduction ? parseFloat(depositDeduction) : null,
       };
 
-      const response = await fetch('/api/inspections', {
+      const response = await apiFetch('/api/inspections', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });

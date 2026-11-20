@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { CheescoLogo, CheescoWordmark } from "./brand";
 import { useAuth } from "@/lib/contexts/auth-context";
 import { ThemeToggle } from "./theme-toggle";
+import { NotificationBell } from "./notification-bell";
+import { ROLE_HOME } from "@/lib/auth";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
@@ -36,23 +38,8 @@ export function Navbar() {
 
   // Role-based dashboard links
   const getDashboardLink = () => {
-    if (!profile) return "/dashboard/customer";
-
-    switch (profile.role) {
-      case "MERCHANT":
-        return "/merchant/dashboard";
-      case "OPERATIONS_ADMIN":
-      case "SUPER_ADMIN":
-        return "/admin/operations";
-      case "VERIFICATION_ADMIN":
-        return "/admin/verification";
-      case "FINANCE_ADMIN":
-        return "/admin/finance";
-      case "SUPPORT_ADMIN":
-        return "/admin/support";
-      default:
-        return "/dashboard/customer";
-    }
+    if (!profile?.role) return "/dashboard/customer";
+    return ROLE_HOME[profile.role as keyof typeof ROLE_HOME] || "/dashboard/customer";
   };
 
   return (
@@ -94,6 +81,7 @@ export function Navbar() {
           <ThemeToggle />
           {user ? (
             <>
+              <NotificationBell />
               <Link
                 href={getDashboardLink()}
                 className="rounded-lg px-3.5 py-2 text-sm font-semibold text-zinc-300 transition-colors hover:text-white hover:bg-card"
@@ -117,7 +105,7 @@ export function Navbar() {
               </Link>
               <Link
                 href="/register"
-                className="rounded-xl bg-cheesco-yellow px-5 py-2 text-sm font-bold text-canvas shadow transition-all hover:scale-[1.02] hover:bg-cheesco-yellow-bright hover:shadow-lg"
+                className="rounded-xl bg-cheesco-yellow px-5 py-2 text-sm font-bold text-[#0A0D14] shadow transition-all hover:scale-[1.02] hover:bg-cheesco-yellow-bright hover:shadow-lg"
               >
                 Sign Up
               </Link>

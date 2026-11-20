@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { fmtNgnFull } from '@/lib/format';
+import { apiFetch } from '@/lib/api-client';
 
 interface Inspection {
   id: string;
@@ -96,12 +97,10 @@ export default function DepositSettlement({
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch('/api/deposits/settle', {
+      const response = await apiFetch('/api/deposits/settle', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           depositId: deposit.id,

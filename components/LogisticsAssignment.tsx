@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { apiFetch } from '@/lib/api-client';
 
 interface LogisticsAssignmentProps {
   rentalRequest: {
@@ -43,12 +44,10 @@ export default function LogisticsAssignment({
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch('/api/logistics', {
+      const response = await apiFetch('/api/logistics', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           rentalRequestId: rentalRequest.id,
