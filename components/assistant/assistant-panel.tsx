@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { AssistantEquipmentCard, EquipmentCardData } from "./equipment-card";
 import { useTheme } from "@/lib/contexts/theme-context";
+import { CheescoLogo } from "@/components/brand";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -246,21 +247,7 @@ export function AssistantPanel({ onClose }: AssistantPanelProps) {
         }`}
       >
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#07131E] border border-[#FACC15]/30 shrink-0">
-            <svg
-              className="w-5 h-5 text-[#FACC15]"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.8}
-                d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"
-              />
-            </svg>
-          </div>
+          <CheescoLogo size={34} />
           <div>
             <div
               className={`font-bold text-sm leading-tight ${
